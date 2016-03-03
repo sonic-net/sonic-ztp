@@ -1,17 +1,20 @@
-BUILT_SOURCES := $(top_srcdir)/src/event_log_levels.c
-CLEANFILES = $(top_srcdir)/src/event_log_levels.c
 
-$(top_srcdir)/src/event_log_levels.c : $(top_srcdir)/inc/event_log_types.h
-	python $(top_srcdir)/src/enum_automation.py $(top_srcdir)/inc/event_log_types.h $(top_srcdir)/inc/priv_event_log_utils.h $@
+#All exported headers
+nobase_include_HEADERS = sonic/sdi_bus_api.h sonic/sdi_bus.h sonic/sdi_i2c_bus_api.h \
+			sonic/sdi_i2c.h sonic/sdi_register_common_api.h sonic/sdi_register_eeprom_api.h \
+                        sonic/sdi_register_fantray_api.h sonic/util.h
 
-lib_LTLIBRARIES = libsonic_logging.la
 
-libsonic_logging_la_SOURCES = src/event_log_cli.c src/event_log_utils.c \
-     src/event_log.c         src/event_log_types.c
+#The sdi-sys library
+lib_LTLIBRARIES = libsonic_sdi_sys.la
 
-nodist_libsonic_logging_la_SOURCES= src/event_log_levels.c
+libsonic_sdi_sys_la_SOURCES = src/sdi_entity.c src/sdi_entity_framework.c \
+                              src/sdi_entity_info.c src/sdi_entity_reset.c \
+                              src/sdi_fan.c src/sdi_led.c src/sdi_media.c src/sdi_startup.c \
+                              src/sdi_thermal.c
 
-libsonic_logging_la_LDFLAGS = 
-libsonic_logging_la_CFLAGS = -I$(top_srcdir)/inc -I$(includedir)/libxml2
+
+libsonic_sdi_framework_la_LDFLAGS = -lsonic_sdi_framework -lsonic_common -lsonic_logging -lpthread -lrt
+libsonic_sdi_framework_la_CFLAGS = -I$(top_srcdir)/sonic  -I$(includedir)/sonic  -I$(includedir)/sonic/private
 
 
