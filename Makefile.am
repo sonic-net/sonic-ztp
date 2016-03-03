@@ -1,7 +1,6 @@
 
 #All exported headers
-nobase_include_HEADERS = sonic/sdi_bus_api.h sonic/sdi_bus.h sonic/sdi_i2c_bus_api.h \
-			sonic/sdi_i2c.h sonic/sdi_register_common_api.h sonic/sdi_register_eeprom_api.h \
+nobase_include_HEADERS = sonic/sdi_register_common_api.h sonic/sdi_register_eeprom_api.h \
                         sonic/sdi_register_fantray_api.h sonic/util.h
 
 
