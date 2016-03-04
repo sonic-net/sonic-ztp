@@ -14,6 +14,6 @@ libsonic_sdi_sys_la_SOURCES = src/sdi_entity.c src/sdi_entity_framework.c \
 
 
 libsonic_sdi_sys_la_LDFLAGS = -lsonic_sdi_framework -lsonic_common -lsonic_logging -lpthread -lrt
-libsonic_sdi_sys_la_CFLAGS = -I$(top_srcdir)/sonic  -I$(includedir)/sonic  -I$(includedir)/sonic/private
+libsonic_sdi_sys_la_CFLAGS = -I$(top_srcdir)/sonic  -I$(includedir)/sonic  -I$(top_srcdir)/sonic/private
 
 

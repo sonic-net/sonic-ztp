@@ -1,17 +1,17 @@
-Source: sonic-sdi-sys-lib
+Source: libsonic-sdi-sys0
 Section: net
 Priority: optional
 Maintainer: Dell <support@dell.com>
 
 Build-Depends: debhelper (>= 9), autotools-dev, dh-exec
 Standards-Version: 3.9.3
-Package: sonic-sdi-sys-lib
+Package: libsonic-sdi-sys0
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},sonic-common-utils-lib(<<2.0.0),sonic-common-utils-lib(>=1.0.0),sonic-logging(<<2.0.0),sonic-logging(>=1.0.0),sonic-sdi-framework-lib(<<2.0.0),sonic-sdi-framework-lib(>=1.0.0)
+Depends: ${shlibs:Depends}, ${misc:Depends},libsonic-common0,libsonic-logging0,libsonic-sdi-framework0
 Description: This package contains implementation of System Device Interface(SDI)
 
-Package: sonic-sdi-sys-dev
+Package: libsonic-sdi-sys-dev
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},sonic-common-utils-dev(<<2.0.0),sonic-common-utils-dev(>=1.0.0),sonic-logging-dev(<<2.0.0),sonic-logging-dev(>=1.0.0),sonic-sdi-api-dev(<<2.0.0),sonic-sdi-api-dev(>=1.0.0),sonic-sdi-framework-dev(<<2.0.0),sonic-sdi-framework-dev(>=1.0.0),sonic-sdi-sys-lib(<<2.0.0),sonic-sdi-sys-lib(>=1.0.0)
+Depends: ${shlibs:Depends}, ${misc:Depends},libsonic-common-dev,libsonic-logging-dev,sonic-sdi-api-dev,libsonic-sdi-framework-dev,libsonic-sdi-sys0
 Description: This package contains implementation of System Device Interface(SDI)
 
