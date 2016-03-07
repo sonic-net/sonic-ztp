@@ -2,9 +2,9 @@ Source: sonic-sdi-sys
 Section: net
 Priority: optional
 Maintainer: Dell <support@dell.com>
-
 Build-Depends: debhelper (>= 9), autotools-dev, dh-exec
 Standards-Version: 3.9.3
+
 Package: libsonic-sdi-sys0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},libsonic-common0,libsonic-logging0,libsonic-sdi-framework0
