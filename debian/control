@@ -3,7 +3,7 @@ Section: net
 Priority: optional
 Maintainer: Dell <support@dell.com>
 Build-Depends: debhelper (>= 9), dh-autoreconf, sonic-sdi-api-dev,
- libsonic-sdi-framework-dev, libsonic-common-dev
+ libsonic-sdi-framework-dev, libsonic-common-dev, libsonic-logging-dev
 Standards-Version: 3.9.3
 
 Package: libsonic-sdi-sys0
