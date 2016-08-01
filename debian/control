@@ -1,0 +1,18 @@
+Source: sonic-sdi-sys
+Section: net
+Priority: optional
+Maintainer: Dell <support@dell.com>
+Build-Depends: debhelper (>= 9), dh-autoreconf, sonic-sdi-api-dev,
+ libsonic-sdi-framework-dev, libsonic-common-dev, libsonic-logging-dev
+Standards-Version: 3.9.3
+
+Package: libsonic-sdi-sys1
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: This package contains implementation of System Device Interface(SDI)
+
+Package: libsonic-sdi-sys-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},libsonic-common-dev,libsonic-logging-dev,sonic-sdi-api-dev,libsonic-sdi-framework-dev,libsonic-sdi-sys1 (= ${binary:Version})
+Description: This package contains implementation of System Device Interface(SDI)
+
