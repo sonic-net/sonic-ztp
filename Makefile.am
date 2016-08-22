@@ -1,8 +1,10 @@
-
-#All exported headers
-nobase_include_HEADERS = sonic/sdi_register_common_api.h sonic/sdi_register_eeprom_api.h \
-                        sonic/sdi_register_fantray_api.h sonic/util.h
-
+noinst_HEADERS = \
+	sonic/sdi_register_common_api.h \
+	sonic/sdi_register_eeprom_api.h \
+	sonic/sdi_register_fantray_api.h \
+	sonic/util.h \
+	sonic/private/sdi_entity_internal.h \
+	sonic/unittest/sdi_unit_test.h
 
 #The sdi-sys library
 lib_LTLIBRARIES = libsonic_sdi_sys.la
