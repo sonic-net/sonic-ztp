@@ -1,3 +1,5 @@
+ACLOCAL_AMFLAGS=-I m4
+
 noinst_HEADERS = \
 	sonic/sdi_register_common_api.h \
 	sonic/sdi_register_eeprom_api.h \
