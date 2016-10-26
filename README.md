@@ -6,7 +6,7 @@ The sonic-sdi-sys repo drives the initialization of the sonic-sdi-framework (mos
 Description
 -----------
 
-This repo along with the sdi-framework and the sdi-device-drivers provides a complete SDI implementation.  As you probably know, the PAS uses the SDI API to drive/understand the behaviour of the platform.
+This repo along with the sdi-framework and the sdi-device-drivers provides a complete SDI implementation.  As you probably know, the PAS uses the SDI API to drive/understand the behavior of the platform.
 
 Building
 --------
