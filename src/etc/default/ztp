@@ -1,0 +1,20 @@
+#
+# Parameters for the ztp.service
+#
+
+# Change below to yes to start ZTP in debug mode
+DEBUG=""
+
+# Change below to yes to start ZTP in unit test mode
+TEST_MODE=""
+
+# Change below to a use a different ZTP configuration 
+# file (/host/ztp/ztp_cfg.json is used if not specified)
+CONFIG_JSON=""
+
+# Change below to yes to start ZTP service along with code coverage measurement
+COVERAGE=""
+
+# Change below to provide command coverage.py tool.
+# (python3-coverage run --append is used if not specified)
+COVERAGE_CMD=""

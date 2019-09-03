@@ -1,0 +1,192 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import sys
+import os
+import fcntl
+import select
+import time
+import stat
+import traceback
+import json
+
+from ztp.ZTPObjects import URL, DynamicURL
+from ztp.ZTPSections import ConfigSection
+from ztp.ZTPLib import runCommand, getField, isString, updateActivity
+from ztp.Logger import logger
+
+class ConfigDBJson:
+
+    '''!
+    This class handle the 'configdb-json' plugin
+    '''
+
+    def __init__(self, input_file):
+        '''!
+        Constructor. We only store the json data input file, all the logic is
+        managed by the main() method
+        
+        @param input_file (str) json data input file to be used by the plugin
+        '''
+        if isString(input_file) is not True:
+            raise TypeError('Snmp provided with invalid argument type.')
+        self.__input_file = input_file
+
+    ## Abort the plugin. Return a non zero return code.
+    def __bailout(self, text):
+        logger.error('configdb-json: Error \'%s\' encountered.' % (text))
+        sys.exit(1)
+
+    ## Extract destination file requested by user
+    def __destination_file(self, url_data):
+        if isinstance(url_data, dict):
+            return url_data.get('destination')
+        else:
+            return None
+
+    def __stop_dhcp(self):
+            (rc, op, errStr) = runCommand("redis-cli -n 4 HGET \"ZTP|mode\" \"profile\"")
+            if rc == 0 and len(op) != 0 and op[0] == 'active':
+                updateActivity('configdb-json: Removing ZTP configuation from Config DB')
+                logger.info('configdb-json: Configuration change detected. Removing ZTP configuation from Config DB.')
+                runCommand('redis-cli -n 4 DEL "ZTP|mode"', capture_stdout=False)
+                # Re-configure interfaces to stop ZTP discovery
+                logger.info('configdb-json: Stopping ZTP discovery on interfaces.')
+                updateActivity('configdb-json: Stopping ZTP discovery on interfaces')
+                runCommand('systemctl restart interfaces-config', capture_stdout=False)
+
+
+    def main(self):
+        '''!
+        Handle all the logic of the plugin.
+        '''
+
+        # Read the section name
+        try:
+            obj_section = ConfigSection(self.__input_file)
+            keys = obj_section.jsonDict.keys()
+            if len(keys) == 0:
+                self.__bailout('Missing valid config_db.son data')
+            section_name = next(iter(keys))
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Extract data from the section which is relevant to the firmware plugin
+        try:
+            section_data = obj_section.jsonDict.get(section_name)
+
+            # Handle "url" or "dynamic-url"
+            if section_data.get('dynamic-url') is not None:
+                objURL = DynamicURL(section_data.get('dynamic-url'))
+                final_dest_file = self.__destination_file(section_data.get('dynamic-url'))
+            elif section_data.get('url') is not None:
+                objURL = URL(section_data.get('url'))
+                final_dest_file = self.__destination_file(section_data.get('url'))
+            else:
+                self.__bailout('Either "url" or "dynamic_url" should be provided')
+
+            # Read options
+            self.__clear_config = getField(section_data, 'clear-config', bool, default_value=True)
+            self.__save_config = getField(section_data, 'save-config', bool, default_value=False)
+            
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Check if either a URL or a dynamic URL has been provided
+        if objURL is None:
+            self.__bailout('Valid URL or dynamic URL not defined')
+
+        # Download the config_db.json file
+        try:
+            url_str = objURL.getSource()
+            logger.info('configdb-json: Downloading config_db.json file from \'%s\'.' % url_str)
+            updateActivity('configdb-json: Downloading config_db.json file from \'%s\'.' % url_str)
+            (rc, dest_file) = objURL.download(destination='/tmp/config_dl.json')
+            if rc != 0 or dest_file is None:
+                self.__bailout('Error (%d) encountered while downloading \'%s\'' % (rc, url_str))
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Check if the downloaded file has failed
+        if os.path.isfile(dest_file) is False:
+            self.__bailout('Download of [%s] failed' % (dest_file))
+
+        # Verify that the file is a syntactically correct json file
+        try:
+            with open(dest_file) as json_file:
+                json_dict = json.load(json_file)
+                json_file.close()
+        except (IOError, ValueError) as e:
+            os.remove(dest_file)
+            self.__bailout('Invalid config_db.json file downloaded from %s, %s' % (url_str, str(e)))
+            raise Exception(e)
+
+        # Run config command
+        cmd = '/usr/bin/config '
+        if self.__clear_config:
+            # Stop ZTP DHCP as it might interfere with config reload
+            self.__stop_dhcp()
+            logger.info('configdb-json: Reloading config_db.json to Config DB.')
+            updateActivity('configdb-json: Reloading config_db.json to Config DB')
+            cmd += 'reload'
+        else:
+            logger.info('configdb-json: Applying config_db.json to Config DB.')
+            updateActivity('configdb-json: Applying config_db.json to Config DB')
+            cmd += 'load'
+        cmd += ' -y ' + dest_file;
+        rc = runCommand(cmd, capture_stdout=False)
+        if rc != 0:
+            logger.error('configdb-json: Command \'%s\' failed with exit code(%d).' %(cmd, rc))
+            os.remove(dest_file)
+            sys.exit(rc)
+        else:
+            # Use default destination file when destination field is missing in URL
+            # If config load, do not overwrite config_db.json. This is used for incremental
+            # updates
+            if final_dest_file is None and self.__clear_config is True:
+                logger.info('configdb-json: Copying downloaded config_db.json to startup configuration.')
+                final_dest_file = '/etc/sonic/config_db.json'
+
+            # Move staged config file to requested destination file
+            if final_dest_file is not None:
+                os.rename(dest_file, final_dest_file)
+            else:
+                os.remove(dest_file)
+
+        # Remove ZTP configuration from config DB if changes have been done to Config DB
+        if self.__clear_config is False or self.__save_config:
+            self.__stop_dhcp()
+
+        # Save config db to startup-config
+        if self.__save_config:
+            logger.info('configdb-json: Saving Config DB contents to startup configuration.')
+            updateActivity('configdb-json: Saving Config DB contents to startup configuration')
+            cmd = 'config save -y'
+            rc = runCommand(cmd, capture_stdout=False)
+            if rc != 0:
+                logger.error('configdb-json: Command \'%s\' failed with exit code (%d).' %(cmd, rc))
+                sys.exit(rc)
+
+
+if __name__== "__main__":       # pragma: no cover
+    if len(sys.argv) != 2:
+        print('configdb-json: Error %s missing input.json data.' % (sys.argv[0]))
+        sys.exit(1)
+    configdb_json = ConfigDBJson(sys.argv[1])
+    configdb_json.main()
+

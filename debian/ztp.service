@@ -1,0 +1,16 @@
+[Unit]
+Description=SONiC Zero Touch Provisioning service
+Wants=config-setup.service
+After=config-setup.service interfaces-config.service
+
+[Service]
+EnvironmentFile=-/etc/default/ztp
+ExecStart=/usr/lib/ztp/sonic-ztp
+StandardOutput=syslog
+StandardError=syslog+console
+UMask=177
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

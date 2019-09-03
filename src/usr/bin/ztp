@@ -1,0 +1,424 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import sys
+import argparse
+from argparse import RawTextHelpFormatter
+import os
+import subprocess
+import errno
+import time
+import datetime
+import signal
+from ztp.JsonReader import JsonReader
+from ztp.ZTPLib import getCfg, setCfg, getFeatures, getTimestamp
+from ztp.ZTPCfg import ZTPCfg
+
+ztp_cfg = None
+## Signal handler is called on SIGTERM or SIGINT
+def signal_handler(signum, frame):
+    print('\nAborted!')
+    sys.exit(0)
+
+## Helper API to modify status variable to a user friendly string.
+def getStatusString(val):
+    if val == 'BOOT':
+        return 'Not Started'
+    else:
+        return val
+
+## Administratively enable ZTP.
+#  Changes only the configuration file.
+def ztp_enable():
+    if getCfg('admin-mode', ztp_cfg=ztp_cfg) is False:
+        # Set ZTP configuration
+        setCfg('admin-mode', True, ztp_cfg=ztp_cfg)
+
+## Helper API to check if ztp systemd service is active or not.
+def ztp_active():
+    try:
+        rc = subprocess.check_call(['systemctl', 'is-active', '--quiet', 'ztp'])
+    except subprocess.CalledProcessError as e:
+        rc = e.returncode
+        pass
+    return rc
+
+## Convert seconds to hh:mm:ss format
+def formatTime(seconds):
+    if seconds < 60:
+        format_str = '%Ss'
+    elif seconds < 3600:
+        format_str = '%Mm %Ss'
+    else:
+        format_str = '%Hh %Mm %Ss'
+    return time.strftime(format_str, time.gmtime(seconds))
+
+## Calculate time diff
+def timeDiff(startTimeStamp, endTimeStamp):
+    try:
+        endTime = time.strptime(endTimeStamp.strip(), "%Y-%m-%d %H:%M:%S %Z")
+        startTime = time.strptime(startTimeStamp.strip(), "%Y-%m-%d %H:%M:%S %Z")
+        time_diff = int(time.mktime(endTime) - time.mktime(startTime))
+        timeStr = formatTime(time_diff)
+    except:
+        timeStr = None
+    return timeStr
+
+## Calcluate and return runtime
+def getRuntime(status, startTimeStamp, endTimeStamp):
+    if status == 'IN-PROGRESS':
+        return timeDiff(startTimeStamp, getTimestamp())
+    elif status == 'SUCCESS' or 'status' == 'FAILED':
+        return timeDiff(startTimeStamp, endTimeStamp)
+    else:
+        return None
+
+## Calculate time string
+def getTimeString(msg):
+   split_msg = msg.split('|', 1)
+   if len(split_msg) == 2:
+       time_str = split_msg[0]
+       try:
+           return "({})".format(timeDiff(time_str.strip(), getTimestamp())) + split_msg[1]
+       except:
+           ret = msg
+   else:
+       return msg
+
+## Return duration since ZTP service has been active
+def ztpServiceRuntime():
+    try:
+        output = subprocess.check_output(['systemctl', 'show', 'ztp', '-p', 'ActiveEnterTimestampMonotonic'])
+        startTime = int(output.decode("utf-8").split('=')[1])/1000000
+        currentTime = int(time.clock_gettime(time.CLOCK_MONOTONIC))
+        time_diff = currentTime - startTime
+    except:
+        return None
+    return formatTime(int(time_diff))
+       
+
+## Get ZTP Server activity
+def getActivityString():
+
+    if ztp_active() != 0:
+       print ('ZTP Service is not running\n')
+       return
+
+    activity_str = None
+    f = getCfg('ztp-activity')
+    if os.path.isfile(f):
+       fh = open(f, 'r')
+       activity_str = fh.readline().strip()
+       fh.close()
+
+    if activity_str is not None and activity_str != '':
+       print ('%s\n' % getTimeString(activity_str))
+
+## Display list of ZTP features available in the image
+def ztp_features(verboseFlag=False):
+    features = getFeatures()
+    
+    for feat in features:
+       if  verboseFlag:
+            print('%s: %s: %s' %(feat, getCfg('info-'+feat, ztp_cfg=ztp_cfg), getCfg(feat, ztp_cfg=ztp_cfg)))
+       else:
+            if getCfg(feat) is True:
+               print(feat)
+
+## Delete ZTP session data to prepare for a new ZTP session
+def ztp_erase(yesFlag):
+
+    # Prompt user to stop/coninute
+    if not yesFlag:
+        if ztp_active() == 0:
+            agree = input('Active ZTP session will be stopped and session data will be deleted. Continue[yes/NO]? ')
+        else:
+            agree = input('ZTP session data will be deleted and may result in a new ZTP session. Continue[yes/NO]? ')
+        if agree.lower() != 'yes' and  agree.lower() != 'y':
+            print('Aborted!')
+            return
+
+    # Cleanup existing ztp data
+    if ztp_active() == 0:
+        os.system('systemctl stop ztp')
+
+    # Destroy current provisioning data
+    if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
+        os.remove(getCfg('ztp-json', ztp_cfg=ztp_cfg))
+
+## Administratively disable ZTP.
+#  It also stops ztp service if it found active, before modifying the configuration.
+#  It results in ZTP to be halted midway. ZTP configuration is replaced with startup config
+#  or factory default configuration.
+def ztp_disable(yesFlag):
+
+    if not yesFlag:
+        agree = input('Active ZTP session will be stopped and disabled, continue?[yes/NO] ')
+        if agree.lower() != 'yes' and  agree.lower() != 'y':
+            print('Aborted!')
+            return
+
+    # Return if already disabled
+    if getCfg('admin-mode', ztp_cfg=ztp_cfg) is False:
+        return
+
+    # Stop ZTP service
+    if ztp_active() == 0:
+        os.system('systemctl stop ztp')
+
+    # Set ZTP configuration
+    setCfg('admin-mode', False, ztp_cfg=ztp_cfg)
+
+    # Remove ZTP profile and load switch configuration as ZTP is now being disabled
+    if (os.path.isfile(getCfg('ztp-lib-dir', ztp_cfg=ztp_cfg) + '/ztp-profile.sh')):
+        os.system(getCfg('ztp-lib-dir', ztp_cfg=ztp_cfg) + '/ztp-profile.sh remove config-fallback')
+
+## Bring the switch back to a state where it can start a new ZTP session.
+#  It starts ztp service and kicksoff ZTP discovery.
+def ztp_run(yesFlag):
+
+    # Bail out of ZTP is administratively disabled
+    if getCfg('admin-mode', ztp_cfg=ztp_cfg) is False:
+        print("ZTP is administratively disabled.")
+        sys.exit(1)
+
+    if not yesFlag:
+        agree = input('ZTP will be restarted. You may lose switch data and connectivity, continue?[yes/NO] ')
+        if agree.lower() != 'yes' and  agree.lower() != 'y':
+            print('Aborted!')
+            return
+
+    # Stop ZTP service and delete previous session information
+    ztp_erase(True)
+
+    # Rename startup config file ZTP does not start if startup config is present
+    if getCfg('monitor-startup-config'):
+        if os.path.isfile(getCfg('config-db-json')):
+            tmp_file =  getCfg('config-db-json')+ '.'+ datetime.datetime.now().replace(microsecond=0).isoformat()
+            os.rename(getCfg('config-db-json'), tmp_file)
+
+    # Restart ZTP service
+    os.system('systemctl start ztp')
+
+## Display current overall ztp status in short coded format
+def ztp_status_code():
+    if getCfg('admin-mode', ztp_cfg=ztp_cfg) is False:
+        print ('0:DISABLED')
+    elif os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+        ztpDict = jsonDict.get('ztp')
+        if ztpDict.get('status') == 'BOOT':
+            print ('3:NOT-STARTED')
+        if ztpDict.get('status') == 'IN-PROGRESS':
+            print ('4:IN-PROGRESS')
+        if ztpDict.get('status') == 'SUCCESS':
+            print ('5:SUCCESS')
+        if ztpDict.get('status') == 'FAILED':
+            print ('6:FAILED')
+    elif ztp_active() == 0:
+        print ('2:ACTIVE-DISCOVERY')
+    else:
+        print ('1:INACTIVE')
+
+## Display current ztp status in detailed format.
+#  Overall ZTP status, ZTP admin mode. Individual configuration
+#  sections status, exit code, timestamps are also displayed.
+def ztp_status_terse():
+    # Print overall ZTP status
+    print ('ZTP Admin Mode : %r' % getCfg('admin-mode', ztp_cfg=ztp_cfg))
+    if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+        ztpDict = jsonDict.get('ztp')
+        if ztp_active() != 0:
+            print ('ZTP Service    : Inactive')
+        else:
+            print ('ZTP Service    : Processing')
+        print ('ZTP Status     : %s' % getStatusString(ztpDict.get('status')))
+        print ('ZTP Source     : %s' % ztpDict.get('ztp-json-source'))
+        runtime = getRuntime(ztpDict.get('status'), ztpDict.get('start-timestamp'), ztpDict.get('timestamp'))
+        if runtime is not None:
+            print ('Runtime        : %s' % runtime)
+        print ('Timestamp      : %s\n' % ztpDict.get('timestamp'))
+
+        getActivityString()
+
+    # Print individual section ZTP status
+        keys = sorted(ztpDict.keys())
+        for k in keys:
+            v = ztpDict.get(k)
+            if isinstance(v, dict):
+                print('%s: %s' % (k, getStatusString(v.get('status'))))
+    else:
+        if ztp_active() == 0:
+            print ('ZTP Service    : Active Discovery')
+            runtime = ztpServiceRuntime()
+            if runtime:
+                print ('Runtime        : %s' % runtime)
+        else:
+            print ('ZTP Service    : Inactive')
+        print ('ZTP Status     : %s\n' % getStatusString('BOOT'))
+        getActivityString()
+    print ('')
+
+## Display current ztp status in brief format.
+#  Overall ZTP status, ZTP admin mode and list of configuration sections
+#  and their results are displayed.
+def ztp_status():
+    # Print overall ZTP status
+    print('========================================')
+    print('%s' % 'ZTP')
+    print('========================================')
+    print ('ZTP Admin Mode : %r' % getCfg('admin-mode', ztp_cfg=ztp_cfg))
+    if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+        ztpDict = jsonDict.get('ztp')
+        if ztp_active() != 0:
+            print ('ZTP Service    : Inactive')
+        else:
+            print ('ZTP Service    : Processing')
+        print ('ZTP Status     : %s' % getStatusString(ztpDict.get('status')))
+        if ztpDict.get('error') is not None:
+            print('Error          : %s' % ztpDict.get('error'))
+        print ('ZTP Source     : %s' % ztpDict.get('ztp-json-source'))
+        runtime = getRuntime(ztpDict.get('status'), ztpDict.get('start-timestamp'), ztpDict.get('timestamp'))
+        if runtime is not None:
+            print ('Runtime        : %s' % runtime)
+        print ('Timestamp      : %s' % ztpDict.get('timestamp'))
+        if ztpDict.get('ignore-result'):
+            print('Ignore Result   : %r' % ztpDict.get('ignore-result'))
+        print ('ZTP JSON Version : %s\n' % ztpDict.get('ztp-json-version'))
+
+        getActivityString()
+
+    # Print individual section ZTP status
+        keys = sorted(ztpDict.keys())
+        for k in keys:
+            v = ztpDict.get(k)
+            if isinstance(v, dict):
+                print('----------------------------------------')
+                print('%s' % k)
+                print('----------------------------------------')
+                if v.get('description') is not None:
+                    print('Description     : %s' % v.get('description'))
+                print('Status          : %s' % getStatusString(v.get('status')))
+                runtime = getRuntime(v.get('status'), v.get('start-timestamp'), v.get('timestamp'))
+                if runtime is not None:
+                    print('Runtime         : %s' % runtime)
+                print('Timestamp       : %s' % v.get('timestamp'))
+                if v.get('exit-code') is not None:
+                    print('Exit Code       : %d' % v.get('exit-code'))
+                if v.get('error') is not None:
+                    print('Error           : %s' % v.get('error'))
+                print('Ignore Result   : %r' % v.get('ignore-result'))
+                if v.get('halt-on-failure') is not None and v.get('halt-on-failure'):
+                    print('Halt on Failure : %r' % v.get('halt-on-failure'))
+                print (' ')
+
+    else:
+        if ztp_active() == 0:
+            print ('ZTP Service    : Active Discovery')
+            runtime = ztpServiceRuntime()
+            if runtime:
+                print ('Runtime        : %s' % runtime)
+        else:
+            print ('ZTP Service    : Inactive')
+        print ('ZTP Status     : %s\n' % getStatusString('BOOT'))
+        getActivityString()
+
+
+def main():
+
+    # Only privileged users can execute this command
+    if os.geteuid() != 0:
+        sys.exit("Root privileges required for this operation")
+
+    # Add allowed arguments
+    parser = argparse.ArgumentParser(description="Zero Touch Provisioning configuration and status monitoring tool",
+                                     formatter_class=RawTextHelpFormatter)
+    parser.add_argument("COMMAND", help='disable  Administratively disable ZTP\n\
+enable   Administratively enable ZTP\n\
+erase    Erase ZTP data\n\
+features ZTP features available\n\
+run      Restart ZTP\nstatus   Display current state of ZTP and last known result')
+    # Configuration file to use
+    parser.add_argument("-C", "--config-json", metavar='FILE', default=None, help="ZTP service configuration file")
+    # Provides status code (used for ztp status)
+    parser.add_argument("-c", "--status-code", action="store_true", help='displays ztp status as a concise coded string. Used with status command.')
+    # Provides more information (used for ztp status)
+    parser.add_argument("-v", "--verbose", action="store_true", help='displays detailed ztp status information. Used with status command.')
+    # Skips user from requiring to answer yes/no? to continue
+    parser.add_argument("-y", "--yes", action="store_true")
+
+
+    # Validate input
+    if len(sys.argv[1:]) == 0:
+        parser.print_help()
+        sys.exit(1)
+
+    # Parse command arguments
+    options = parser.parse_args()
+    cmd = options.COMMAND.lower()
+
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Use configuration file provided on command line
+    cfg_json = options.config_json
+    if cfg_json is not None:
+        if not os.path.isfile(options.config_json):
+            print("Invalid ZTP configuration file '%s' provided." % options.config_json)
+            sys.exit(1)
+        try: 
+            global ztp_cfg
+            ztp_cfg = ZTPCfg(cfg_json_file=cfg_json)
+
+        except Exception as e:
+            print('Exception [%s] occured while reading ZTP configuration file \'%s\'.' % (str(e), cfg_json))
+            print('Exiting ZTP service.')
+            sys.exit(1)
+
+    # Execute the command
+    try:
+        if cmd == 'enable' :
+            ztp_enable()
+        elif cmd == 'disable' :
+            ztp_disable(options.yes)
+        elif cmd == 'run' :
+            ztp_run(options.yes)
+        elif cmd == 'erase' :
+            ztp_erase(options.yes)
+        elif cmd == 'features' :
+            ztp_features(options.verbose)
+        elif cmd == 'status' and options.verbose:
+            ztp_status()
+        elif cmd == 'status' and options.status_code:
+            ztp_status_code()
+        elif cmd == 'status':
+            ztp_status_terse()
+        else:
+            parser.print_help()
+            sys.exit(1)
+
+    except Exception as e:
+        print ('Error! Exception[%s] occured while processing the command ztp %s.' %(str(e), sys.argv[1]))
+        sys.exit(1)
+    sys.exit(0)
+
+if __name__== "__main__":
+    main()

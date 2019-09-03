@@ -1,0 +1,113 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import os
+import sys
+import time
+import shutil
+
+from ztp.ZTPLib import isString, runCommand, updateActivity
+from ztp.ZTPObjects import URL, DynamicURL
+from ztp.ZTPSections import ConfigSection
+from ztp.Logger import logger
+
+def processData(dict, app_name, dest_file):
+  app_data = dict.get(app_name)
+
+  url_str = None
+  if app_data is None:
+    return None
+ 
+  if app_data.get('dynamic-url') is not None:
+     objURL  = DynamicURL(app_data.get('dynamic-url'), dest_file)
+     url_str = objDynURL.getSource()
+  elif app_data.get('url') is not None:
+     objURL = URL(app_data.get('url'), dest_file)
+     url_str = objURL.getSource()
+
+  if url_str is not None:
+     return objURL
+  return None
+
+def main():
+  try:
+    exit_code = 0
+    objSection     = ConfigSection(sys.argv[1])
+    keys = objSection.jsonDict.keys()
+    if len(keys) == 0:
+        logger.error('graphservice: Configuration section name not found.')
+        sys.exit(1)
+    section_name = next(iter(keys))
+    section_data   = objSection.jsonDict.get(section_name)
+    graph_file     = '/etc/sonic/minigraph.xml'
+    old_graph_file = '/etc/sonic/minigraph.old'
+    acl_json_file  = '/etc/sonic/acl.json'
+    acl_json_file  = acl_json_file + '.old'
+
+    minigraph_url = processData(section_data, 'minigraph-url', graph_file)
+    if minigraph_url is not None:
+      # Take backup of existing file
+      if os.path.isfile(graph_file):
+         shutil.move(graph_file, old_graph_file)
+      logger.info('graphservice: Downloading minigraph from \'%s\'.' % minigraph_url.getSource())
+      updateActivity('graphservice: Downloading minigraph from \'%s\'.' % minigraph_url.getSource())
+      (rc, dest_file) = minigraph_url.download(destination=graph_file)
+
+      if rc ==0 :
+         acl_url = processData(section_data, 'acl-url', acl_json_file)
+         if acl_url is not None:
+            # Take backup of existing file
+            shutil.move(acl_json_file, acl_json_file+'.old')
+            logger.info('graphservice: Downloading acl.json from \'%s\'.' % acl_url.getSource())
+            updateActivity('graphservice: Downloading acl.json from \'%s\'.' % acl_url.getSource())
+            (rc, dest_file) = acl_url.download(destination=acl_json_file)
+            if rc != 0:
+                logger.error('graphservice: Failed to download acl.json from \'%s\, error(%d).' % (acl_url.getSource(), rc))
+                # restore the backup
+                if os.path.isfile(old_acl_json_file):
+                    shutil.copyfile(old_acl_json_file, acl_json_file)
+
+                if os.path.isfile(old_acl_json_file):
+                    shutil.copyfile(old_acl_json_file, acl_json_file)
+         # load the minigraph xml
+         logger.info('graphservice: Loading downloaded minigraph to Config DB.')
+         updateActivity('graphservice: Loading downloaded minigraph to Config DB')
+         exit_code = runCommand('config load_minigraph -y', capture_stdout=False)
+         if exit_code == 0:
+              logger.info('graphservice: Saving contents of Config DB as startup configuration.')
+              updateActivity('graphservice: Saving contents of Config DB as startup configuration')
+              exit_code = runCommand('config save -y', capture_stdout=False)
+              if exit_code != 0:
+                    logger.error('graphservice: Error (%d) encountered  while saving contents of Config DB to startup configuration.' % (exit_code))
+         else:
+              logger.error('graphservice: Error (%d) encountered  while loading minigraph to Config DB.' % (exit_code))
+      else:
+         logger.error('graphservice: Failed to download minigraph from \'%s\, error(%d).' % (minigraph_url.getSource(), rc))
+         # restore the backup
+         if os.path.isfile(old_graph_file):
+              shutil.copyfile(old_graph_file, graph_file)
+
+    sys.exit(exit_code)
+
+  except Exception as e:
+    logger.error('graphservice: Exception [%s] encountered while processing %s.' % (str(e), section_name))
+    sys.exit(1)
+
+if __name__== "__main__":
+   main()
+

@@ -1,0 +1,149 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import sys
+import os
+import fcntl
+import select
+import time
+import stat
+import traceback
+
+from ztp.ZTPObjects import URL, DynamicURL
+from ztp.ZTPSections import ConfigSection
+from ztp.ZTPLib import runCommand, getField, isString
+from ztp.Logger import logger
+
+class Snmp:
+
+    '''!
+    This class handle the 'snmp' plugin
+    '''
+
+    def __init__(self, input_file):
+        '''!
+        Constructor. We only store the json data input file, all the logic is
+        managed by the main() method
+
+        @param input_file (str) json data input file to be used by the plugin
+        '''
+        if isString(input_file) is not True:
+            raise TypeError('Snmp provided with invalid argument type.')
+        self.__input_file = input_file
+        self.__snmp_yml = '/etc/sonic/snmp.yml'
+
+    ## Abort the plugin. Return a non zero return code.
+    def __bailout(self, text):
+        logger.error('snmp: Error [%s] encountered while processing.' % (text))
+        sys.exit(1)
+
+    def __change_item(self, key, value):
+        '''!
+        Change -or create- the item "key: value" in file /etc/sonic/snmp.yml
+
+        @param key (str) Key name (such as 'snmp_rocommunity' or 'snmp_location'
+        @param value (str) Value given to the key
+        '''
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/bin/grep %s %s' % (key, self.__snmp_yml))
+        if rc == 1 and len(cmd_stdout) == 0:
+            try:
+                f = open(self.__snmp_yml, "a")
+                f.write('%s: %s\n' % (key, value))
+                f.close()
+            except Exception as e:
+                self.__bailout(str(e))
+        else:
+            cmd = '/bin/sed -i "s/^%s:.*/%s: %s/g" %s' % (key, key, value, self.__snmp_yml)
+            rc = runCommand(cmd, capture_stdout=False)
+            if rc != 0:
+                logger.error('snmp: Error (%d) encountered while executing command \'%s\'.' %(rc, cmd))
+                return False
+        return True
+
+    def main(self):
+        '''!
+        Handle all the logic of the plugin.
+        '''
+
+        # Read the section name
+        try:
+            obj_section = ConfigSection(self.__input_file)
+            keys = obj_section.jsonDict.keys()
+            if len(keys) == 0:
+                self.__bailout('Missing configuration data')
+            section_name = next(iter(keys))
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Extract data from the section which is relevant to the snmp plugin
+        no_section = True
+        restart_agent = False
+        try:
+            section_data = obj_section.jsonDict.get(section_name)
+            restart_agent = getField(section_data, 'restart-agent', bool, default_value=False)
+            if section_data.get('community-ro') is not None:
+                no_section = False
+                community_ro = getField(section_data, 'community-ro', str, default_value=None)
+            if section_data.get('snmp-location') is not None:
+                no_section = False
+                snmp_location = getField(section_data, 'snmp-location', str, default_value=None)
+            if no_section is True:
+                self.__bailout('Either \'community-ro\', or \'snmp-location\' should be provided')
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # If /etc/sonic/snmp.yml does not exist (unlikely) we create it
+        if os.path.isfile(self.__snmp_yml) is False:
+            f = open(self.__snmp_yml, "w")
+            if  community_ro is not None:
+                logger.info('snmp: Configuring SNMP read only community name.')
+                f.write('snmp_rocommunity: %s\n' % (community_ro))
+            if  snmp_location is not None:
+                logger.info('snmp: Configuring SNMP location.')
+                f.write('snmp_location: %s\n' % (snmp_location))
+            f.close()
+        # If /etc/sonic/snmp.yml exists, update it's contents
+        else:
+            if  community_ro is not None:
+                logger.info('snmp: Configuring SNMP read only community name.')
+                if self.__change_item('snmp_rocommunity', community_ro) is False:
+                    logger.error('snmp: Failed to configure SNMP read only community name.')
+                    sys.exit(1)
+            if  snmp_location is not None:
+                logger.info('snmp: Configuring SNMP location.')
+                if self.__change_item('snmp_location', snmp_location) is False:
+                    logger.error('snmp: Failed to configure SNMP location.')
+                    sys.exit(1)
+
+        # Do we need to retart snmp service ?
+        if restart_agent:
+            logger.info('snmp: Restarting snmp agent.')
+            cmd = '/bin/systemctl restart snmp'
+            rc = runCommand(cmd, capture_stdout=False)
+            if rc != 0:
+                logger.error('Error (%d) encountered while executing command \'%s\'.' %(rc, cmd))
+                sys.exit(rc)
+        else:
+            logger.info('snmp: Skipping restart of snmp agent.')
+
+if __name__== "__main__":       # pragma: no cover
+    if len(sys.argv) != 2:
+        print('snmp: Error %s missing input.json data.' % (sys.argv[0]))
+        sys.exit(1)
+    snmp = Snmp(sys.argv[1])
+    snmp.main()

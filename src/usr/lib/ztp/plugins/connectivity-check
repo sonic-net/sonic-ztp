@@ -1,0 +1,157 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import sys
+import time
+import os
+
+from ztp.ZTPLib import isString, runCommand, getField, updateActivity
+from ztp.ZTPSections import ConfigSection
+from ztp.Logger import logger
+
+class ConnectivityCheck:
+
+    '''!
+    This class handle the 'connectivity-check' plugin
+    '''
+
+    def __init__(self, input_file):
+        '''!
+        Constructor. We only store the json data input file, all the logic is
+        managed by the main() method
+        
+        @param input_file (str) json data input file to be used by the plugin
+        '''
+        self.__input_file = input_file
+
+    def pingHosts(self, host_list, retry_count, retry_interval, ping_count, deadline, timeout, ipv6=False):
+
+        # Prepare list of hosts to ping
+        if not isinstance(host_list, list):
+             _host_list = [host_list]
+        else:
+             _host_list = list(host_list)
+
+        # initialize flags
+        rc = True
+
+        # Loop through all hosts
+        while True:
+             # Check if retry count has reached to configured value and break free
+             # -1 means, retry forever
+             if retry_count == 0:
+                # There are few hosts which are not reachable
+                rc = False
+                break
+             iter_list = list(_host_list)
+             # Loop through current host list
+             for host in iter_list:
+                if isString(host):
+                    pingCmd = "ping -q -c " + str(ping_count) + " "
+                    if deadline is not None:
+                        pingCmd += "-w " + str(deadline) + " "
+                    if timeout is not None:
+                        pingCmd += "-W " + str(timeout) + " "
+                    if ipv6:
+                      pingCmd = pingCmd + " -6 "
+                    logger.info('connectivity-check: Pinging host \'%s\'.' % (host))
+                    updateActivity('connectivity-check: Pinging host \'%s\'.' % (host))
+                    # Ping the host
+                    rv = runCommand(pingCmd + host, False)
+                    if rv == 0:
+                         # Host is alive, remove it from the list
+                         _host_list.remove(host)
+                    logger.info('connectivity-check: Host \'%s\' not reachable.' % (host))
+                    updateActivity('connectivity-check: Host \'%s\' not reachable.' % (host))
+                else:
+                    # Discard invalid hosts
+                    _host_list.remove(host)
+
+             if len(_host_list) == 0:
+                break
+             time.sleep(retry_interval)
+             if retry_count != -1:
+                retry_count = retry_count - 1
+        return rc
+
+    def main(self):
+
+        # Collect input data
+        try:
+            objSection = ConfigSection(self.__input_file)
+            keys = objSection.jsonDict.keys()
+            if len(keys) == 0:
+                sys.exit(1)
+            section_name = next(iter(keys))
+        except Exception as e:
+            sys.exit(1)
+
+        # Extract data from the section which is relevant to the firmware plugin
+        try:
+            section_data = objSection.jsonDict.get(section_name)
+            if isinstance(section_data, dict) is False or (section_data.get('ping-hosts') is None and section_data.get('ping6-hosts') is None):
+                logger.error('connectivity-check: Host list not provided.')
+                sys.exit(1)
+
+            # Time interval in seconds to wait before retrying ping to hosts
+            retry_interval = getField(section_data, 'retry-interval', int, 5)
+            if retry_interval < 0:
+                retry_interval = 5
+
+            # Number of attempts to ping a host before giving up, -1 means try till it succeeds
+            retry_count = getField(section_data, 'retry-count', int, 12)
+
+            # Number of ping packets to be sent to a host in a single attempt
+            ping_count = getField(section_data, 'ping-count', int, 3)
+            if ping_count <= 0:
+                 ping_count = 3
+
+            # Timeout, in seconds, before ping exits  regardless of how many packets have been sent or received
+            deadline = getField(section_data, 'deadline', int, None)
+
+            # Time to wait for a response, in seconds
+            timeout = getField(section_data, 'timeout', int, None)
+
+            # Ping ipv4 host list
+            if section_data.get('ping-hosts') is not None:
+                logger.info('connectivity-check: Attempting to connect to IPv4 hosts %s.' % (section_data.get('ping-hosts')))
+                if self.pingHosts(section_data.get('ping-hosts'), retry_count, retry_interval, ping_count, deadline, timeout) is False:
+                    logger.error('connectivity-check: IPv4 hosts not reachable.')
+                    sys.exit(1)
+                logger.info('connectivity-check: All IPv4 hosts %s reachable' %(section_data.get('ping-hosts')))
+
+            # Ping ipv6 host list
+            if section_data.get('ping6-hosts') is not None:
+                logger.info('connectivity-check: Attempting to connect to IPv6 hosts %s.' % (section_data.get('ping6-hosts')))
+                if self.pingHosts(section_data.get('ping6-hosts'), retry_count, retry_interval, ping_count, deadline, timeout, ipv6=True) is False:
+                    logger.error('connectivity-check: IPv6 hosts not reachable.')
+                    sys.exit(1)
+                logger.info('connectivity-check: All IPv6 hosts %s reachable' %(section_data.get('ping6-hosts')))
+
+        except Exception as e:
+            logger.error('connectivity-check: Exception[%s] encountered while connecting to hosts.' %(e))
+            sys.exit(1)
+
+        sys.exit(0)
+
+if __name__== "__main__":       # pragma: no cover
+    if len(sys.argv) != 2:
+        print('connectivity-check: Error %s missing input.json data.' % (sys.argv[0]))
+        sys.exit(1)
+    connectivity_check = ConnectivityCheck(sys.argv[1])
+    connectivity_check.main()

@@ -1,0 +1,531 @@
+#!/usr/bin/python3
+'''
+Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+import sys
+import os
+import json
+import fcntl
+import select
+import time
+import stat
+import traceback
+
+from ztp.ZTPObjects import URL, DynamicURL
+from ztp.ZTPSections import ConfigSection
+from ztp.ZTPLib import runCommand, getField, updateActivity, getCfg, systemReboot
+from ztp.Logger import logger
+
+class Firmware:
+
+    '''!
+    This class handle the 'firmware' plugin
+    '''
+    # Downloaded file
+    __dest_file = None
+
+    def __init__(self, input_file):
+        '''!
+        Constructor. We only store the json data input file, all the logic is
+        managed by the main() method
+
+        @param input_file (str) json data input file to be used by the plugin
+        '''
+        self.__input_file = input_file
+
+    ## Return the current SONiC image
+    def __which_current_image(self):
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        if rc != 0:
+            return ''
+        for l in cmd_stdout:
+            if l.find('Current: ') == 0:
+                return l[9:]
+        return ''
+
+    ## Return the next image which will be used at next boot
+    def __which_next_image(self):
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        if rc != 0:
+            return ''
+        for l in cmd_stdout:
+            if l.find('Next: ') == 0:
+                return l[6:]
+        return ''
+
+    ## Retrieve the binary version for a given image file
+    def __binary_version(self, fname):
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer binary_version %s' % (fname))
+        if rc != 0 or len(cmd_stdout) != 1:
+            return ''
+        return cmd_stdout[0]
+
+    ## Return a list of available images (installed)
+    def __available_images(self):
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        if rc != 0:
+            return ''
+        index = 0;
+        for l in cmd_stdout:
+            index += 1
+            if l.find('Available:') == 0:
+                return cmd_stdout[index:]
+        return []
+
+    def __set_default_image(self, image):
+        '''!
+        Set the default SONiC image.
+
+        @param image (str) SONiC image filename
+        '''
+        cmd = '/usr/bin/sonic_installer set_default ' + image
+        rc = runCommand(cmd, capture_stdout=False)
+        if rc != 0:
+            self.__bailout('Error (%d) on command \'%s\'' %(rc, cmd))
+
+    def __set_next_boot_image(self, image):
+        '''!
+        Set the next boot SONiC image.
+
+        @param image (str) SONiC image filename
+        '''
+        cmd = '/usr/bin/sonic_installer set_next_boot %s' % (image)
+        rc = runCommand(cmd, capture_stdout=False)
+        if rc != 0:
+            self.__bailout('Error (%d) on command \'%s\'' %(rc, cmd))
+
+    def __reboot_switch(self):
+        '''!
+        Reboot the switch
+        '''
+        # Do not reboot if reboot-on-success is set in ZTP section data
+        # or if skip-reboot is set by user. This allows, user to reboot
+        # the switch at a different time.
+        if self.__reboot_on_success or self.__skip_reboot:
+            logger.info('firmware: Skipped switch reboot as requested.')
+            sys.exit(0)
+        else:
+            logger.info('firmware: Initiating device reboot.')
+            # Mark install section as SUCCESS so that it is not executed again after reboot
+            with open(getCfg('ztp-json')) as json_file:
+                _ztp_dict = json.load(json_file)
+                json_file.close()
+                install_obj = _ztp_dict.get('ztp').get(self.__section_name).get('install')
+                if install_obj is not None:
+                    install_obj['status'] = 'SUCCESS'
+                    with open(getCfg('ztp-json'), 'w') as outfile:
+                         json.dump(_ztp_dict, outfile, indent=4, sort_keys=True)
+                         outfile.flush()
+                         outfile.close()
+            systemReboot()
+
+    def __download_file(self, objURL):
+        '''!
+        Download a file.
+        
+        @param objURL URL obj (either static, or dynamic URL)
+        '''
+
+        # Download the file using provided URL
+        try:
+            url_str = objURL.getSource()
+            logger.info('firmware: Downloading file \'%s\'.' % url_str)
+            updateActivity('firmware: Downloading file \'%s\'.' % url_str)
+            (rc, dest_file) = objURL.download()
+            if rc != 0 or dest_file is None:
+                if dest_file is not None and os.path.isfile(dest_file):
+                    os.remove(dest_file)
+                self.__bailout('Error (%d) while downloading file \'%s\'' % (rc, url_str))
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Check if the downloaded file has failed
+        if os.path.isfile(dest_file) is False:
+            self.__bailout('Destination file [%s] not found after downloading file \'%s\'' % (dest_file, url_str))
+            
+        return dest_file
+
+    # Abort the plugin. Return a non zero return code.
+    def __bailout(self, text):
+        # Clean-up
+        if self.__dest_file is not None and os.path.isfile(self.__dest_file):
+            os.remove(self.__dest_file)
+        logger.error('firmware: Error [%s] encountered while processing.' % (text))
+        sys.exit(1)
+
+    def __process_pre_check(self, app_data):
+        '''!
+        Handle a pre-check script.
+
+        @param app_data (dict) Plugin application data
+        @return (int) Exit code of the pre-check script
+        '''
+        try:
+            if app_data.get('dynamic-url') is not None:
+                objURL = DynamicURL(app_data.get('dynamic-url'))
+            elif app_data.get('url') is not None:
+                objURL = URL(app_data.get('url'))
+            else:
+                self.__bailout('pre-check script missing both "url" and "dynamic_url" source')
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Download the file using the requested URL
+        logger.info('firmware: Downloading pre-installation check script.')
+        self.__dest_file = self.__download_file(objURL)
+
+        # Execute this file
+        os.chmod(self.__dest_file, os.stat(self.__dest_file).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        logger.info('firmware: Executing pre-installation check script.')
+        updateActivity('firmware: Executing pre-installation check script')
+        rc = runCommand(self.__dest_file, capture_stdout=False)
+
+        # Clean-up
+        os.remove(self.__dest_file)
+
+        return rc
+
+
+    def __process_remove(self, app_data, some_install_later):
+        '''!
+        Handle the "remove" operation. Allow to remove a given SONiC image.
+
+        @param app_data (dict) Plugin application data
+        @some_install_later (bool) True if there is an "install" later
+        '''
+
+        # Handle option 'pre-check' script
+        if app_data.get('pre-check') is not None:
+            pre_check = self.__process_pre_check(app_data.get('pre-check'))
+            if pre_check != 0:
+                logger.info('firmware: pre-installation check returned with result (%d).' % pre_check)
+                logger.info('firmware: Aborting firmware remove operation.')
+                return
+
+        if app_data.get('version') is None:
+            msg = 'Version of image to be removed is not provided'
+            if some_install_later:
+                logger.error('firmware: ' + msg +'.')
+                logger.error('firmware: Aborting firmware remove operation.')
+                return
+            self.__bailout(msg)
+        image_name = app_data.get('version')
+
+        # Keep track of the images installed before we delete the image
+        available_images_before = self.__available_images()
+
+        # Create command
+        cmd = '/usr/bin/sonic_installer remove -y ' + image_name
+
+        # Execute sonic_installer command
+        try:
+            logger.info('firmware: Removing firmware version %s.' % image_name)
+            updateActivity('firmware: Removing firmware version %s.' % image_name)
+            rc = runCommand(cmd, capture_stdout=False)
+        except TypeError as e:
+            logger.info(str(e))
+            rc = 1
+        if rc != 0:
+            msg = 'Error (%d) encountered while processing command \'%s\'' % (rc, cmd)
+            if some_install_later:
+                logger.info('firmware: ' + msg + '.')
+                return
+            else:
+                self.__bailout(msg)
+
+        # Check if we have really deleted the image
+        available_images_after = self.__available_images()
+        image_removed = set(available_images_before) - set(available_images_after)
+        if len(image_removed) != 1:
+            self.__bailout("Unknown error encountered while removing firmware version %s." % str(image_removed))
+        else:
+            image_removed_version = image_removed.pop()
+            logger.info("firwmare: Version %s has been removed." % image_removed_version)
+
+    def __check_if_image_current_or_installed(self, img_version, current_image, available_images_before):
+        '''!
+        Check first if the image is in the list of installed images.
+        If the image is already current, no need to do anything.
+        If the image is the next image on boot, just reboot.
+        If the image is already installed, no need to download it, we will make it current and then reboot.
+        
+        @param img_version This is the version of the image we want to install and make current.
+        
+        @param available_images_before This is the list of installed images we collected before this operation.
+        
+        #return True if the image is already current or installed.
+                False  otherwise.        
+        '''
+
+        try:
+        
+            # Check if the image is in the list of installed images
+            updateActivity('firmware: Collecting installed images information')
+            i = available_images_before.index(img_version)
+
+            # No need to download the image, it's already current 
+            if img_version == current_image:
+                logger.info("firmware: Version %s is already installed and is operational." % (img_version))
+                return True
+
+            # Just reboot if this image is the next image
+            next_image = self.__which_next_image()
+            if img_version == next_image:
+                logger.info("firmware: Version %s is already configured to be the next boot image." % (img_version))
+                if self.__set_default is True:
+                     self.__reboot_switch()
+                else:
+                     return True
+
+            # Image is available, so no need to download it, just make it current and reboot
+            logger.info("firmware: Version %s is already installed." % (img_version))
+            if self.__set_default is True:
+                logger.info("firmware: Set version %s as the default boot image." % (img_version))
+                self.__set_default_image(img_version)
+                self.__reboot_switch()
+
+            if self.__set_next_boot is True:
+                logger.info("firmware: Set version %s as next boot image." % (img_version))
+                self.__set_next_boot_image(img_version)
+                self.__reboot_switch()
+
+            return True
+        except ValueError:
+            return False
+
+    def __process_install(self, app_data):
+        '''!
+        Handle the "install" operation. Allow to install a new SONiC image.
+
+        @param app_data (dict) Plugin application data
+        '''
+
+        if getField(app_data, 'status', str, default_value='IN-PROGRESS') == 'SUCCESS':
+            return
+
+        # Handle option 'pre-check' script
+        if app_data.get('pre-check') is not None:
+            pre_check = self.__process_pre_check(app_data.get('pre-check'))
+            if pre_check != 0:
+                logger.info('firmware: pre-installation check returned with result (%d).' % pre_check)
+                logger.info('firmware: Aborting firmware install operation.')
+                return
+
+        try:
+
+            # Handle "url" or "dynamic-url"
+            if app_data.get('dynamic-url') is not None:
+                objURL = DynamicURL(app_data.get('dynamic-url'))
+            elif app_data.get('url') is not None:
+                objURL = URL(app_data.get('url'))
+            else:
+                self.__bailout('Either "url" or "dynamic_url" should be provided')
+
+            # Read options
+            self.__version = getField(app_data, 'version', str, default_value=None)
+            self.__set_default = getField(app_data, 'set-default', bool,  default_value=True)
+            self.__set_next_boot = getField(app_data, 'set-next-boot', bool, default_value=False)
+
+            # reboot condition
+            self.__skip_reboot =  getField(app_data, 'skip-reboot',  bool, default_value=False)
+
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # We need to know which image is current before we install the new one
+        current_image = self.__which_current_image()
+
+        # Keep track of the images installed before we install a new image
+        available_images_before = self.__available_images()
+
+        # If the version is provided, check first if the image is already current
+        if self.__version is not None:
+            if self.__check_if_image_current_or_installed(self.__version, current_image, available_images_before) is True:
+                return
+
+        # Download the file using the requested URL
+        self.__dest_file = self.__download_file(objURL)
+        
+        # If the version is provided, compare the versions before we install it
+        new_img = self.__binary_version(self.__dest_file)
+        if self.__version is not None:
+            if new_img != self.__version:
+                self.__bailout('Mismatch in image versions:\nGot %s\nExpected %s' % (new_img, self.__version))
+
+        # If the version is not provided, check if the image is already current or installed
+        if self.__version is None:
+            if self.__check_if_image_current_or_installed(new_img, current_image, available_images_before) is True:
+                # Clean-up
+                os.remove(self.__dest_file)
+                return
+
+        # Create command
+        cmd = '/usr/bin/sonic_installer install -y ' + self.__dest_file
+
+        # Execute sonic_installer command
+        logger.info('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
+        updateActivity('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
+        rc = runCommand(cmd, capture_stdout=False)
+        if rc != 0:
+            self.__bailout('Error (%d) encountered while processing command : %s' % (cmd))
+
+        # Check if we have really installed a new image
+        available_images_after = self.__available_images()
+        images_delta = [i for i in available_images_before + available_images_after if i not in available_images_before or i not in available_images_after] 
+        if images_delta == []:
+            self.__bailout('Unknown error encountered while installing image %s' % (self.__dest_file))
+        image_installed = set(available_images_after) - set(available_images_before)
+        if len(image_installed) != 1:
+            logger.debug('firmware: Unknown error encountered while installing image \'%s\'.' % str(image_installed))
+        else:
+            image_installed_version = image_installed.pop()
+            logger.info("firmware: Version %s successfully installed." % image_installed_version)
+
+        # Set back the previously current image as default image
+        if self.__set_default is False:
+            logger.info("firmware: Processing request to not set installed version %s as the default image." % (current_image))
+            self.__set_default_image(current_image)
+
+        # Choose image for next reboot (one time)
+        if self.__set_next_boot is True:
+            if new_img is None:
+                new_img = self.__binary_version(self.__dest_file)
+            if new_img != '':
+                logger.info("firmware: Version %s set as next reboot image." % (new_img))
+                self.__set_next_boot_image(new_img)
+
+        # Clean-up
+        os.remove(self.__dest_file)
+
+        # Since we have installed successfully a new image, we reboot the switch
+        if self.__set_default is True or self.__set_next_boot is True:
+            logger.info("firmware: Post image installation device reboot.")
+            self.__reboot_switch()
+
+    def __process_upgrade_docker(self, app_data):
+        '''!
+        Handle the "upgrade-docker" operation.
+        Allow to update a docker image.
+
+        @param app_data (dict) Plugin application data
+        '''
+
+        # Handle option 'pre-check' script
+        if app_data.get('pre-check') is not None:
+            pre_check = self.__process_pre_check(app_data.get('pre-check'))
+            if pre_check != 0:
+                logger.info('firmware: pre-installation check returned with result (%d).' % pre_check)
+                logger.info('firmware: Aborting docker image install operation.')
+                return
+
+        try:
+
+            # Handle "url" or "dynamic-url"
+            if app_data.get('dynamic-url') is not None:
+                objURL = DynamicURL(app_data.get('dynamic-url'))
+            elif app_data.get('url') is not None:
+                objURL = URL(app_data.get('url'))
+            else:
+                self.__bailout('Either "url" or "dynamic_url" should be provided')
+
+            # Read options
+            self.__container_name = getField(app_data, 'container-name', str)
+            if self.__container_name is None:
+               self.__bailout('Valid container name not specified')
+            self.__cleanup_image = getField(app_data, 'cleanup-image', bool, default_value=False)
+            self.__enforce_check = getField(app_data, 'enforce-check', bool, default_value=False)
+            self.__tag = getField(app_data, 'tag', str, default_value=None)
+
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Download docker image to install
+        self.__dest_file = self.__download_file(objURL)
+
+        # Create command
+        logger.info('firmware: Upgrading container %s using docker image file %s.' % (self.__container_name, self.__dest_file))
+        cmd = '/usr/bin/sonic_installer upgrade_docker -y %s %s' % (self.__container_name, self.__dest_file)
+        if self.__cleanup_image:
+            cmd += ' --cleanup_image'
+            logger.info('firmware: cleanup_image requested.')
+        if self.__enforce_check:
+            cmd += ' --enforce_check'
+            logger.info('firmware: enforce_check requested.')
+        if self.__tag is not None:
+            cmd += ' --tag %s' % (self.__tag)
+            logger.info('firmware: tag %s requested.' % self.__tag)
+
+        # Execute sonic_installer command
+        updateActivity('firmware: Upgrading container %s using docker image file %s' % (self.__container_name, self.__dest_file))
+        rc = runCommand(cmd, capture_stdout=False)
+
+        # Clean-up
+        os.remove(self.__dest_file)
+        if rc != 0:
+            self.__bailout('Error (%d) encountered while processing command : %s' % (cmd))
+        logger.info('firmware: Container %s successfully upgraded.' % self.__container_name)
+
+    def main(self):
+        '''!
+        Handle all the logic of the plugin.
+        '''
+
+        # Read the section name
+        try:
+            obj_section = ConfigSection(self.__input_file)
+            keys = obj_section.jsonDict.keys()
+            if len(keys) == 0:
+                self.__bailout('Missing configuration data')
+            self.__section_name = next(iter(keys))
+        except Exception as e:
+            self.__bailout(str(e))
+
+        # Extract data from the section which is relevant to the firmware plugin
+        no_section = True
+        try:
+            section_data = obj_section.jsonDict.get(self.__section_name)
+            # reboot condition
+            self.__reboot_on_success = getField(section_data, 'reboot-on-success', bool, False)
+
+            if section_data.get('remove') is not None:
+                logger.debug('firmware: Processing remove request. ')
+                no_section = False
+                self.__process_remove(section_data.get('remove'), section_data.get('install') is not None)
+            if section_data.get('install') is not None:
+                logger.debug('firmware: Processing install request. ')
+                no_section = False
+                self.__process_install(section_data.get('install'))
+            if self.__dest_file is not None and os.path.isfile(self.__dest_file):
+               os.remove(self.__dest_file)
+            if section_data.get('upgrade-docker') is not None:
+                logger.debug('firmware: Processing upgrade docker container request. ')
+                no_section = False
+                self.__process_upgrade_docker(section_data.get('upgrade-docker'))
+            if self.__dest_file is not None and os.path.isfile(self.__dest_file):
+                os.remove(self.__dest_file)
+            if no_section is True:
+                self.__bailout('At least one of "install", "remove" or "upgrade-docker" operations should be defined')
+        except Exception as e:
+            self.__bailout(str(e))
+
+if __name__== "__main__":       # pragma: no cover
+    if len(sys.argv) != 2:
+        print('firmware: Error %s missing input.json data.' % (sys.argv[0]))
+        sys.exit(1)
+    firmware = Firmware(sys.argv[1])
+    firmware.main()
+    sys.exit(0)
