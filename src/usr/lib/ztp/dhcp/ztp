@@ -80,20 +80,24 @@ if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
    && [ "$reason" != BOUND6 ] && [ "$reason" != RENEW6 ] \
    && [ "$reason" != REBIND6 ]
 then
-    take_lock dhcp
-    if [ $? -eq 0 ]; then
-        rm -f $PROVISIONING_SCRIPT_URL_FILE
-        rm -f $ZTP_JSON_URL_FILE
-        rm -f $ZTP_TFTP_SERVER_FILE
-        rm -f ${GRAPH_URL}
-        rm -f ${ACL_URL}
-        give_lock dhcp
-    fi
-    take_lock dhcp6
-    if [ $? -eq 0 ]; then
-        rm -f $PROVISIONING_SCRIPT_URL6_FILE
-        rm -f $ZTP_JSON_URL6_FILE
-        give_lock dhcp6
+    proto_num=$(echo -n $reason | tail -c -1)
+    if [ "$proto_num" != "6" ]; then
+        take_lock dhcp
+        if [ $? -eq 0 ]; then
+            rm -f $PROVISIONING_SCRIPT_URL_FILE
+            rm -f $ZTP_JSON_URL_FILE
+            rm -f $ZTP_TFTP_SERVER_FILE
+            rm -f ${GRAPH_URL}
+            rm -f ${ACL_URL}
+            give_lock dhcp
+        fi
+    else
+        take_lock dhcp6
+        if [ $? -eq 0 ]; then
+            rm -f $PROVISIONING_SCRIPT_URL6_FILE
+            rm -f $ZTP_JSON_URL6_FILE
+            give_lock dhcp6
+        fi
     fi
 fi
 

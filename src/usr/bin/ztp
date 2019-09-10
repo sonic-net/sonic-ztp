@@ -83,7 +83,7 @@ def timeDiff(startTimeStamp, endTimeStamp):
 def getRuntime(status, startTimeStamp, endTimeStamp):
     if status == 'IN-PROGRESS':
         return timeDiff(startTimeStamp, getTimestamp())
-    elif status == 'SUCCESS' or 'status' == 'FAILED':
+    elif status == 'SUCCESS' or status == 'FAILED':
         return timeDiff(startTimeStamp, endTimeStamp)
     else:
         return None
