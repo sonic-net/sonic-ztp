@@ -1,0 +1,17 @@
+Source: sonic-ztp
+Maintainer: Rajendra Dendukuri <rajendra.dendukuri@broadcom.com>
+Uploaders: Olivier Singla <olivier.singla@broadcom.com>
+Section: devel
+Priority: optional
+Build-Depends: debhelper (>= 8.0.0),
+               dh-systemd
+Standards-Version: 3.9.3
+Homepage: https://github.com/Azure/sonic-ztp
+
+Package: sonic-ztp
+Architecture: all
+Depends: python3,
+         curl,
+         ifupdown2 (>=1.2.8),
+         isc-dhcp-client
+Description: Zero Touch Provisioning for switches running SONiC

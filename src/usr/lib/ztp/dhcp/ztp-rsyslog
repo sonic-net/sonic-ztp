@@ -1,0 +1,67 @@
+#!/bin/sh
+###########################################################################
+# Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.    #
+# and/or its subsidiaries.                                                #
+#                                                                         #
+# Licensed under the Apache License, Version 2.0 (the "License");         #
+# you may not use this file except in compliance with the License.        #
+# You may obtain a copy of the License at                                 #
+#                                                                         #
+#   http://www.apache.org/licenses/LICENSE-2.0                            #
+#                                                                         #
+# Unless required by applicable law or agreed to in writing, software     #
+# distributed under the License is distributed on an "AS IS" BASIS,       #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.#
+# See the License for the specific language governing permissions and     #
+# limitations under the License.                                          #
+###########################################################################
+# Filename:     /etc/dhcp/dhclient-exit-hooks.d/ztp-rsyslog
+# Purpose:      Used by dhclient-script to set the remote log server
+#               of the system to match the log-server information as
+#               provided by DHCP during ZTP operation.
+#
+
+SYSLOG_FORWARDING_CONF=/etc/rsyslog.d/10-ztp-log-forwarding.conf
+
+if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
+   && [ "$reason" != REBIND ] && [ "$reason" != REBOOT ] \
+   && [ "$reason" != BOUND6 ] && [ "$reason" != RENEW6 ] \
+   && [ "$reason" != REBIND6 ]
+then
+    return
+fi
+
+if [ ! -e ${SYSLOG_FORWARDING_CONF} ]; then
+    touch ${SYSLOG_FORWARDING_CONF}
+fi
+
+if [ "$new_log_servers" = "$old_log_servers" ]; then
+
+    [ "$new_log_servers" = "" ] && return
+
+    for server in $new_log_servers; do
+        if ! grep -q $server ${SYSLOG_FORWARDING_CONF}; then
+            NEW_SERVER="y"
+        fi
+    done
+
+    [ "$NEW_SERVER" != "y" ] && return
+fi
+
+# Search and delete existing server configurations
+for server in $old_log_servers
+do
+    sed -i "/^*.* @$server:514;SONiCFileFormat/d" ${SYSLOG_FORWARDING_CONF}
+done
+
+# Add new log servers
+for server in $new_log_servers
+do
+# Remove existing entry for same server to
+# avoid duplicates
+    sed -i "/^*.* @$server:514;SONiCFileFormat/d" ${SYSLOG_FORWARDING_CONF}
+    echo "*.* @$server:514;SONiCFileFormat" >> ${SYSLOG_FORWARDING_CONF}
+done
+
+# restart service to pickup new configuration
+systemctl -q restart rsyslog

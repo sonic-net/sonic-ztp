@@ -1,0 +1,46 @@
+{
+    "DEVICE_METADATA": { 
+      "localhost" : {
+       "hwsku" : "{{ DEVICE_METADATA.localhost.hwsku }}",
+       "mac" : "{{ DEVICE_METADATA.localhost.mac }}",
+       "platform" : "{{ DEVICE_METADATA.localhost.platform }}",
+       "type" : "not-provisioned",
+       "hostname" : "sonic"
+      }
+    },
+    "PORT": {
+{%- for port in PORT -%}
+         "{{port}}" : {
+                "index": "{{ PORT[port].index }}",
+                "lanes": "{{ PORT[port].lanes }}",
+                "mtu":   "9100",
+{% if PORT[port].alias is defined and PORT[port].alias != "" %}
+                "alias": "{{ PORT[port].alias }}",
+{% endif %}
+{% if PORT[port].speed is defined and PORT[port].speed != "" %}
+                "speed": "{{ PORT[port].speed }}",
+{% endif %}
+{% if PORT[port].valid_speeds is defined and PORT[port].valid_speeds != "" %}
+                "valid_speeds": "{{ PORT[port].valid_speeds }}",
+{% endif %}
+{% if ZTP_INBAND == "true" %}
+                "admin_status": "up"
+{% else %}
+                "admin_status": "down"
+{% endif %}
+       }{%- if loop.last == False -%},{% endif %}
+
+{%- endfor %}
+   },
+   "ZTP" : {
+    "mode" : {
+        "profile" : "active",
+        "inband" : "{{ZTP_INBAND}}",
+        "out-of-band" : "true",
+        "ipv4" : "{{ZTP_IPV4}}",
+        "ipv6" : "{{ZTP_IPV6}}",
+        "product-name" : "{{PRODUCT_NAME}}",
+        "serial-no" : "{{SERIAL_NO}}"
+    }
+   }
+}

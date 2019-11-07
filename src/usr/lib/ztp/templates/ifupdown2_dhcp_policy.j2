@@ -1,0 +1,21 @@
+{
+  "dhcp" : {
+    "defaults" : {
+       "dhcp-wait" : "no"
+    },
+    "iface_defaults" : {
+{% if ZTP_INBAND == "true" %}
+{% for port in PORT %}
+      "{{port}}" : {
+        "dhcp6-ll-wait" : "0",
+        "dhcp6-duid" : "LL"
+     },
+{% endfor %}
+{% endif %}
+      "eth0" : {
+        "dhcp6-ll-wait" : "2",
+        "dhcp6-duid" : "LL"
+      }
+    }
+  }
+}

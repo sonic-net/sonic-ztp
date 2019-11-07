@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+#export DH_VERBOSE=1
+
+%:
+	@dh $@ --parallel
+
+override_dh_auto_install:
+	dh_systemd_enable -p sonic-ztp --name=ztp
+
+override_dh_auto_build:
+

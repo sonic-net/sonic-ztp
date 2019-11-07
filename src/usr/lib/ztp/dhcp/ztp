@@ -1,0 +1,131 @@
+###########################################################################
+# Copyright 2019 Broadcom. The term "Broadcom" refers to Broadcom Inc.    #
+# and/or its subsidiaries.                                                #
+#                                                                         #
+# Licensed under the Apache License, Version 2.0 (the "License");         #
+# you may not use this file except in compliance with the License.        #
+# You may obtain a copy of the License at                                 #
+#                                                                         #
+#   http://www.apache.org/licenses/LICENSE-2.0                            #
+#                                                                         #
+# Unless required by applicable law or agreed to in writing, software     #
+# distributed under the License is distributed on an "AS IS" BASIS,       #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.#
+# See the License for the specific language governing permissions and     #
+# limitations under the License.                                          #
+###########################################################################
+#
+# Purpose:      Used by dhclient-script to process DHCP Option 239 and 67.
+#               These are used for Zero Touch Provisioning.
+#
+
+ZTP_RUN_DIR=/var/run/ztp
+GRAPH_URL=${ZTP_RUN_DIR}/dhcp_graph_url
+ACL_URL=${ZTP_RUN_DIR}/dhcp_acl_url
+PROVISIONING_SCRIPT_URL_FILE=${ZTP_RUN_DIR}/dhcp_239-provisioning-script_url
+PROVISIONING_SCRIPT_URL6_FILE=${ZTP_RUN_DIR}/dhcp6_239-provisioning-script_url
+ZTP_JSON_URL_FILE=${ZTP_RUN_DIR}/dhcp_67-ztp_data_url
+ZTP_JSON_URL6_FILE=${ZTP_RUN_DIR}/dhcp6_59-ztp_data_url
+ZTP_TFTP_SERVER_FILE=${ZTP_RUN_DIR}/dhcp_66-ztp_tftp_server
+LOCK_DIR=${ZTP_RUN_DIR}/ztp.lock
+LOCK_ID_FILE=${LOCK_DIR}/interface
+
+read_lock() {
+    lock_id=""
+    if [ -d ${LOCK_DIR} ]; then
+        lock_id=$(cat "${LOCK_ID_FILE}")
+    fi
+    echo $lock_id
+}
+
+take_lock() {
+    rv=1
+    proto=$1
+
+    if [ ! -d ${ZTP_RUN_DIR} ]; then
+        mkdir -p ${ZTP_RUN_DIR}
+    fi
+
+    if [ ! -d ${LOCK_DIR} ]; then
+        mkdir ${LOCK_DIR}  > /dev/null 2>&1
+        rv=$?
+        [ "$rv" = "0" ] && echo "$proto:$interface" > ${LOCK_ID_FILE}
+    else
+        [ "$(read_lock)" = "$proto:$interface" ] && rv=0
+    fi
+    return $rv
+}
+
+give_lock() {
+    proto=$1
+    if [ -d ${LOCK_DIR} ]; then
+        lock_id=$(cat "${LOCK_ID_FILE}")
+        [ "$lock_id" = "$proto:$interface" ] && rm -rf ${LOCK_DIR}
+    fi
+}
+
+# Check if updategraph service is administratively enabled
+updategraph_is_enabled()
+{
+    rv=1
+    if [ -e ${UPDATEGRAPH_CONF} ]; then
+        updategraph_mode=$(grep enabled ${UPDATEGRAPH_CONF} | head -n 1 | cut -f2 -d=)
+        [ "${updategraph_mode}" = "true" ] && rv = 0
+    fi
+    return $rv
+}
+
+if [ "$reason" != BOUND ] && [ "$reason" != RENEW ] \
+   && [ "$reason" != REBIND ] && [ "$reason" != REBOOT ] \
+   && [ "$reason" != BOUND6 ] && [ "$reason" != RENEW6 ] \
+   && [ "$reason" != REBIND6 ]
+then
+    proto_num=$(echo -n $reason | tail -c -1)
+    if [ "$proto_num" != "6" ]; then
+        take_lock dhcp
+        if [ $? -eq 0 ]; then
+            rm -f $PROVISIONING_SCRIPT_URL_FILE
+            rm -f $ZTP_JSON_URL_FILE
+            rm -f $ZTP_TFTP_SERVER_FILE
+            rm -f ${GRAPH_URL}
+            rm -f ${ACL_URL}
+            give_lock dhcp
+        fi
+    else
+        take_lock dhcp6
+        if [ $? -eq 0 ]; then
+            rm -f $PROVISIONING_SCRIPT_URL6_FILE
+            rm -f $ZTP_JSON_URL6_FILE
+            give_lock dhcp6
+        fi
+    fi
+fi
+
+if [ "$(ztp status -c)" != "0:DISABLED" ]; then
+    if [ -n "$new_bootfile_name" ]; then
+        take_lock dhcp && echo $new_bootfile_name > $ZTP_JSON_URL_FILE
+        if [ -n "$new_tftp_server_name" ]; then
+            take_lock dhcp && echo $new_tftp_server_name > $ZTP_TFTP_SERVER_FILE
+        fi
+    fi
+
+    if [ -n "$new_dhcp6_boot_file_url" ]; then
+        take_lock dhcp6 && echo $new_dhcp6_boot_file_url > $ZTP_JSON_URL6_FILE
+    fi
+
+    if [ -n "$new_provisioning_script_url" ]; then
+        take_lock dhcp && echo $new_provisioning_script_url > $PROVISIONING_SCRIPT_URL_FILE
+    fi
+
+    if [ -n "$new_dhcp6_provisioning_script_url" ]; then
+        take_lock dhcp6 && echo $new_dhcp6_provisioning_script_url > $PROVISIONING_SCRIPT_URL6_FILE
+    fi
+
+    if [ -n "$new_minigraph_url" ]; then
+        take_lock dhcp && echo $new_minigraph_url > ${GRAPH_URL}
+
+        if [ -n "$new_acl_url" ]; then
+            take_lock dhcp && echo $new_acl_url > ${ACL_URL}
+        fi
+    fi
+fi

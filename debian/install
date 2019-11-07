@@ -1,0 +1,8 @@
+src/usr/lib/ztp/* usr/lib/ztp
+src/usr/bin/* usr/bin
+src/etc/dhcp/dhclient-exit-hooks.d/* etc/dhcp/dhclient-exit-hooks.d
+src/etc/dhcp/dhclient-enter-hooks.d/* etc/dhcp/dhclient-enter-hooks.d
+src/etc/default/ztp etc/default
+src/etc/logrotate.d/* etc/logrotate.d
+tests/* usr/lib/ztp/tests
+src/usr/lib/python3/dist-packages/ztp /usr/lib/python3/dist-packages
