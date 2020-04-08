@@ -62,6 +62,7 @@ defaultCfg = dict( \
   "ztp-activity"         : '/var/run/ztp/activity', \
   "ztp-cfg-dir"          : "/host/ztp", \
   "ztp-json"             : "/host/ztp/ztp_data.json", \
+  "ztp-json-shadow"      : "/host/ztp/ztp_data_shadow.json", \
   "ztp-json-local"       : "/host/ztp/ztp_data_local.json", \
   "ztp-json-opt59"       : "/var/run/ztp/ztp_data_opt59.json", \
   "ztp-json-opt67"       : "/var/run/ztp/ztp_data_opt67.json", \

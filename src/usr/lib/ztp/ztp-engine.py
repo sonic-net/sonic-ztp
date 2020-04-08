@@ -480,6 +480,8 @@ class ZTPEngine():
             logger.error('ZTP JSON file %s processing failed.' % (self.json_src))
             try:
                 os.remove(getCfg('ztp-json'))
+                if os.path.isfile(getCfg('ztp-json-shadow')):
+                    os.remove(getCfg('ztp-json-shadow'))
             except OSError as v:
                 if v.errno != errno.ENOENT:
                     logger.warning('Exception [%s] encountered while deleting ZTP JSON file %s.' % (str(v), getCfg('ztp-json')))
@@ -507,6 +509,8 @@ class ZTPEngine():
                 # Discover new ZTP data after deleting historic ZTP data
                 logger.info("ZTP restart requested. Deleting previous ZTP session JSON data.")
                 os.remove(getCfg('ztp-json'))
+                if os.path.isfile(getCfg('ztp-json-shadow')):
+                    os.remove(getCfg('ztp-json-shadow'))
                 self.objztpJson = None
                 return ("retry", "ZTP restart requested")
             else:
@@ -539,6 +543,8 @@ class ZTPEngine():
         # Mark ZTP for restart
         if _restart_ztp_missing_config or _restart_ztp_on_failure:
             os.remove(getCfg('ztp-json'))
+            if os.path.isfile(getCfg('ztp-json-shadow')):
+               os.remove(getCfg('ztp-json-shadow'))
             self.objztpJson = None
             # Remove startup-config file to obtain a new one through ZTP
             if getCfg('monitor-startup-config') is True and os.path.isfile(getCfg('config-db-json')):
