@@ -217,8 +217,8 @@ class TestClass(object):
             if getCfg('feat-ipv6'):
                assert(jsonDict.get('ZTP').get('mode').get('ipv6').lower() == 'true')
                assert('iface eth0 inet6 dhcp' in intf_file)
-               assert('    up sysctl net.ipv6.conf.$IFACE.accept_ra=1' in intf_file)
-               assert('    down sysctl net.ipv6.conf.$IFACE.accept_ra=0' in intf_file)
+               assert('    up sysctl net.ipv6.conf.eth0.accept_ra=1' in intf_file)
+               assert('    down sysctl net.ipv6.conf.eth0.accept_ra=0' in intf_file)
                if getCfg('feat-inband'):
                    assert('iface Ethernet0 inet6 dhcp' in intf_file)
                    assert('iface Ethernet1 inet6 dhcp' not in intf_file)
