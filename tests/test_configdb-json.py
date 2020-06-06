@@ -170,6 +170,12 @@ class TestClass(object):
 
         cmd = "/bin/sed -i -e 's/\"hostname\": \".*\"/\"hostname\": \"something\"/' " + str(fh_after)
         rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"platform\": \".*\"/\"platform\": \"invalid1\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"mac\": \".*\"/\"mac\": \"invalid2\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"hwsku\": \".*\"/\"hwsku\": \"invalid3\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
 
         fh = d.join("input.json")
         fh.write("""
@@ -197,6 +203,12 @@ class TestClass(object):
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
+        with open(str(fh_after)) as json_file:
+            json_dict = json.load(json_file)
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('platform') != 'invalid1')
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('mac') != 'invalid2')
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('hwsku') != 'invalid3')
+
         # Collect the differences between the two configurations
         cmd = "/usr/bin/diff --changed-group-format='%>' --unchanged-group-format='' " + str(fh_before) + ' ' + str(fh_after)
         (rc2, cmd_stdout, cmd_stderr) = runCommand(cmd)
@@ -218,12 +230,29 @@ class TestClass(object):
         cmd = 'config save -y ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
+        cmd = 'sonic-cfggen -d -H -v DEVICE_METADATA.localhost.platform'
+        (rc, cmd_stdout, cmd_stderr) = runCommand(cmd)
+        assert(rc == 0)
+        platform = cmd_stdout[0]
+        cmd = 'sonic-cfggen -d -H -v DEVICE_METADATA.localhost.hwsku'
+        (rc, cmd_stdout, cmd_stderr) = runCommand(cmd)
+        assert(rc == 0)
+        hwsku = cmd_stdout[0]
+        sku_dir = '/usr/share/sonic/device/{}/{}'.format(platform, hwsku)
+        os.system('rm -rf {}' .format(sku_dir+'_dup'))
+        os.system('cp -R {} {}' .format(sku_dir, sku_dir+'_dup'))
 
         data = self.__read_file(str(fh_before))
         fh_after = d.join("config-after.json")
         self.__write_file(str(fh_after), data)
 
         cmd = "/bin/sed -i -e 's/\"hostname\": \".*\"/\"hostname\": \"something\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"platform\": \".*\"/\"platform\": \"invalid1\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"mac\": \".*\"/\"mac\": \"invalid2\"/' " + str(fh_after)
+        rc  = runCommand(cmd)
+        cmd = "/bin/sed -i -e 's/\"hwsku\": \".*\"/\"hwsku\": \"" + hwsku + "_dup"  +"\"/' " + str(fh_after)
         rc  = runCommand(cmd)
 
         fh = d.join("input.json")
@@ -251,6 +280,12 @@ class TestClass(object):
         cmd = 'config save -y ' + str(fh_after)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
+
+        with open(str(fh_after)) as json_file:
+            json_dict = json.load(json_file)
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('platform') != 'invalid1')
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('mac') != 'invalid2')
+            assert(json_dict.get('DEVICE_METADATA').get('localhost').get('hwsku') == hwsku + "_dup")
 
         # Restore initial configuration
         cmd = 'config reload -y ' + str(fh_before)

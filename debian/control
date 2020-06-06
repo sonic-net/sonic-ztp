@@ -13,5 +13,6 @@ Architecture: all
 Depends: python3,
          curl,
          ifupdown2 (>=1.2.8),
-         isc-dhcp-client
+         isc-dhcp-client,
+         python3-natsort
 Description: Zero Touch Provisioning for switches running SONiC

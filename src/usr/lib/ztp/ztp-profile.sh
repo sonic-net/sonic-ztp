@@ -26,7 +26,6 @@
 # Initalize constants
 RETRY_COUNT=24
 RETRY_INTERVAL=5
-CONFIG_DB_INDEX=4
 ZTP_LIB_PATH=/usr/lib/ztp/
 TMP_ZTP_CONFIG_DB_JSON=/tmp/ztp_config_db.json
 CONFIG_DB_JSON=/etc/sonic/config_db.json
@@ -67,10 +66,10 @@ updateActivity()
 # Get ztp profile information for Config DB
 get_ztp_profile()
 {
-    ZTP_PROF_LOADED=$(redis-cli -n $CONFIG_DB_INDEX HGET "ZTP|mode" "profile")
-    INBAND=$(redis-cli -n $CONFIG_DB_INDEX HGET "ZTP|mode" "inband")
-    IPV6=$(redis-cli -n $CONFIG_DB_INDEX HGET "ZTP|mode" "ipv6")
-    IPV4=$(redis-cli -n $CONFIG_DB_INDEX HGET "ZTP|mode" "ipv4")
+    ZTP_PROF_LOADED=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "profile")
+    INBAND=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "inband")
+    IPV6=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "ipv6")
+    IPV4=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "ipv4")
 
     if [ "${ZTP_PROF_LOADED}" = "active" ]; then
         ZTP_STRING="ztp;inband:${INBAND};ipv4:${IPV4};ipv6:${IPV6}"
@@ -113,8 +112,8 @@ dhcp_policy_create()
 ztp_config_create()
 {
     DEST_FILE=$1
-    if [ "$DEST" = "" ]; then
-        DEST=${TMP_ZTP_CONFIG_DB_JSON}
+    if [ "$DEST_FILE" = "" ]; then
+        DEST_FILE=${TMP_ZTP_CONFIG_DB_JSON}
     fi
 
     PRODUCT_NAME=$(decode-syseeprom  -p | tr -dc '[[:print:]]')
@@ -152,24 +151,17 @@ wait_for_system_online()
 {
     TRIES=${RETRY_COUNT}
     # Obtain the list of interfaces that may be created after some delay
-    HOTPLUG_LIST=$(redis-cli -n $CONFIG_DB_INDEX KEYS "PORT*" | cut -f2 -d\|)
+    HOTPLUG_LIST=$(sonic-db-cli CONFIG_DB KEYS "PORT*" | cut -f2 -d\|)
 
     while [ ${TRIES} -gt 0 ]
     do
         RETRY=0
-        STATUS="$(show system status 2> /dev/null)"
-        if [ "${STATUS}" != "" ] && [ "${STATUS}" != "System is ready" ]; then
-            RETRY=1
-        fi
-
-        if [ "$RETRY" = "0" ]; then
-            for PORT in ${HOTPLUG_LIST}; do
-                if [ ! -d /sys/class/net/${PORT} ]; then
-                    RETRY=1
-                    break;
-                fi
-            done
-        fi
+        for PORT in ${HOTPLUG_LIST}; do
+            if [ ! -d /sys/class/net/${PORT} ]; then
+                RETRY=1
+                break;
+            fi
+        done
         [ ${RETRY} -eq 0 ] && break
         sleep ${RETRY_INTERVAL}
         TRIES=`expr $TRIES - 1`
@@ -264,7 +256,7 @@ if [ "$CMD" = "remove" ] ; then
             fi
         else
             # Remove ZTP configuration from config-db
-            redis-cli -n 4 DEL "ZTP|mode"
+            sonic-db-cli CONFIG_DB DEL "ZTP|mode"
         fi
 
         updateActivity "Restarting network configuration"
