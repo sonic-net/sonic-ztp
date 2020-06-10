@@ -21,7 +21,7 @@ import os
 import stat
 import pytest
 
-from ztp.ZTPLib import runCommand, getField, getCfg
+from ztp.ZTPLib import runCommand, getField, getCfg, printable
 sys.path.append(getCfg('plugins-dir'))
 
 class TestClass(object):
@@ -114,3 +114,11 @@ class TestClass(object):
 
         data = dict({'key': {'subkey':10} })
         assert (getField(data, 'key', dict, None).get('subkey') == 10)
+
+    def test_misc(self):
+        assert(printable("Test-/\=$!()*#!_?><,.][{}+String1234567890") == "Test-/\=$!()*#!_?><,.][{}+String1234567890")
+        assert(printable("Te\u20ACst\u20AC") == "Test")
+        assert(printable("\u20AC\u20AC") == "")
+        assert(printable(None) == None)
+        assert(printable({"k": "v"}) == None)
+        assert(printable("") == "")

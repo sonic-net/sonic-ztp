@@ -19,6 +19,7 @@ import datetime
 import time
 import shlex
 import subprocess
+from curses.ascii import isprint
 import ztp.ZTPCfg
 import os.path
 from   ztp.defaults import *
@@ -272,3 +273,17 @@ def systemReboot():
         os.system('reboot -y')
     else:
         os.system('reboot')
+
+def printable(input):
+    '''!
+         Filter out non-printable characters from an input string
+
+         @param input (str) Input string
+
+         @return String with non-printable characters removed
+                 None if invalid input data type
+    '''
+    if input is not None and isString(input):
+        return ''.join(char for char in input if isprint(char))
+    else:
+        return None
