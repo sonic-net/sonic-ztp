@@ -18,7 +18,7 @@ limitations under the License.
 import sys
 import os
 
-from ztp.ZTPLib import runCommand
+from ztp.ZTPLib import runCommand, printable
 
 class DecodeSysEeprom:
 
@@ -64,7 +64,7 @@ class DecodeSysEeprom:
         if not rc == 0 or len(cmd_stdout) != 1:
             return 'N.A'
         else:
-            return cmd_stdout[0].rstrip()
+            return printable(cmd_stdout[0].rstrip())
 
 ## Global instance of the class
 sysEeprom = DecodeSysEeprom()
