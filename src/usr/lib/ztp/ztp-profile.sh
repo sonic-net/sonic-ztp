@@ -117,8 +117,8 @@ ztp_config_create()
         DEST=${TMP_ZTP_CONFIG_DB_JSON}
     fi
 
-    PRODUCT_NAME=$(decode-syseeprom  -p)
-    SERIAL_NO=$(decode-syseeprom  -s)
+    PRODUCT_NAME=$(decode-syseeprom  -p | tr -dc '[[:print:]]')
+    SERIAL_NO=$(decode-syseeprom  -s | tr -dc '[[:print:]]')
     sonic-cfggen -H -k ${HW_KEY} -a "{\"ZTP_INBAND\": \"$(get_feature inband)\", \
              \"ZTP_IPV4\": \"$(get_feature ipv4)\", \"ZTP_IPV6\": \"$(get_feature ipv6)\", \
              \"PRODUCT_NAME\": \"${PRODUCT_NAME}\",  \"SERIAL_NO\": \"${SERIAL_NO}\"}" \
