@@ -49,7 +49,7 @@ class Firmware:
 
     ## Return the current SONiC image
     def __which_current_image(self):
-        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic-installer list')
         if rc != 0:
             return ''
         for l in cmd_stdout:
@@ -59,7 +59,7 @@ class Firmware:
 
     ## Return the next image which will be used at next boot
     def __which_next_image(self):
-        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic-installer list')
         if rc != 0:
             return ''
         for l in cmd_stdout:
@@ -69,14 +69,14 @@ class Firmware:
 
     ## Retrieve the binary version for a given image file
     def __binary_version(self, fname):
-        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer binary_version %s' % (fname))
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic-installer binary-version %s' % (fname))
         if rc != 0 or len(cmd_stdout) != 1:
             return ''
         return cmd_stdout[0]
 
     ## Return a list of available images (installed)
     def __available_images(self):
-        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic_installer list')
+        (rc, cmd_stdout, cmd_stderr) = runCommand('/usr/bin/sonic-installer list')
         if rc != 0:
             return ''
         index = 0;
@@ -92,7 +92,7 @@ class Firmware:
 
         @param image (str) SONiC image filename
         '''
-        cmd = '/usr/bin/sonic_installer set_default ' + image
+        cmd = '/usr/bin/sonic-installer set-default ' + image
         rc = runCommand(cmd, capture_stdout=False)
         if rc != 0:
             self.__bailout('Error (%d) on command \'%s\'' %(rc, cmd))
@@ -103,7 +103,7 @@ class Firmware:
 
         @param image (str) SONiC image filename
         '''
-        cmd = '/usr/bin/sonic_installer set_next_boot %s' % (image)
+        cmd = '/usr/bin/sonic-installer set-next-boot %s' % (image)
         rc = runCommand(cmd, capture_stdout=False)
         if rc != 0:
             self.__bailout('Error (%d) on command \'%s\'' %(rc, cmd))
@@ -229,9 +229,9 @@ class Firmware:
         available_images_before = self.__available_images()
 
         # Create command
-        cmd = '/usr/bin/sonic_installer remove -y ' + image_name
+        cmd = '/usr/bin/sonic-installer remove -y ' + image_name
 
-        # Execute sonic_installer command
+        # Execute sonic-installer command
         try:
             logger.info('firmware: Removing firmware version %s.' % image_name)
             updateActivity('firmware: Removing firmware version %s.' % image_name)
@@ -374,9 +374,9 @@ class Firmware:
                 return
 
         # Create command
-        cmd = '/usr/bin/sonic_installer install -y ' + self.__dest_file
+        cmd = '/usr/bin/sonic-installer install -y ' + self.__dest_file
 
-        # Execute sonic_installer command
+        # Execute sonic-installer command
         logger.info('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
         updateActivity('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
         rc = runCommand(cmd, capture_stdout=False)
@@ -458,7 +458,7 @@ class Firmware:
 
         # Create command
         logger.info('firmware: Upgrading container %s using docker image file %s.' % (self.__container_name, self.__dest_file))
-        cmd = '/usr/bin/sonic_installer upgrade_docker -y %s %s' % (self.__container_name, self.__dest_file)
+        cmd = '/usr/bin/sonic-installer upgrade-docker -y %s %s' % (self.__container_name, self.__dest_file)
         if self.__cleanup_image:
             cmd += ' --cleanup_image'
             logger.info('firmware: cleanup_image requested.')
@@ -469,7 +469,7 @@ class Firmware:
             cmd += ' --tag %s' % (self.__tag)
             logger.info('firmware: tag %s requested.' % self.__tag)
 
-        # Execute sonic_installer command
+        # Execute sonic-installer command
         updateActivity('firmware: Upgrading container %s using docker image file %s' % (self.__container_name, self.__dest_file))
         rc = runCommand(cmd, capture_stdout=False)
 
