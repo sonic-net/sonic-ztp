@@ -160,7 +160,7 @@ class TestClass(object):
 
         d = tmpdir.mkdir("valid")
         fh_before = d.join("config-before.json")
-        cmd = '/usr/bin/config save -y ' + str(fh_before)
+        cmd = 'config save -y ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
@@ -193,7 +193,7 @@ class TestClass(object):
         configdb_json.main()
 
         fh_after = d.join("config-after.json")
-        cmd = '/usr/bin/config save -y ' + str(fh_after)
+        cmd = 'config save -y ' + str(fh_after)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
@@ -202,7 +202,7 @@ class TestClass(object):
         (rc2, cmd_stdout, cmd_stderr) = runCommand(cmd)
 
         # Restore initial configuration
-        cmd = '/usr/bin/config load -y ' + str(fh_before)
+        cmd = 'config load -y ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
@@ -215,7 +215,7 @@ class TestClass(object):
 
         d = tmpdir.mkdir("valid")
         fh_before = d.join("config-before.json")
-        cmd = '/usr/bin/config save -y ' + str(fh_before)
+        cmd = 'config save -y ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
@@ -248,12 +248,12 @@ class TestClass(object):
         configdb_json.main()
 
         fh_after = d.join("config-after.json")
-        cmd = '/usr/bin/config save -y ' + str(fh_after)
+        cmd = 'config save -y ' + str(fh_after)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
 
         # Restore initial configuration
-        cmd = '/usr/bin/config reload -y ' + str(fh_before)
+        cmd = 'config reload -y ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
-        rc = runCommand('/usr/bin/config save -y', capture_stdout=False)
+        rc = runCommand('config save -y', capture_stdout=False)

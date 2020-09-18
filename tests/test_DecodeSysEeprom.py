@@ -37,33 +37,36 @@ class TestClass(object):
     \endcode
     '''
 
+    DECODE_SYSEEPROM_PATH = '/usr/local/bin/decode-syseeprom'
+    DECODE_SYSEEPROM_BACKUP_PATH = DECODE_SYSEEPROM_PATH + '_org'
+
     def test_missing_utility(self):
         '''!
         Test when we call the constructor function and decode-syseprom utility is missing
         '''
-        shutil.move('/usr/bin/decode-syseeprom', '/usr/bin/decode-syseeprom_org')
+        shutil.move(self.DECODE_SYSEEPROM_PATH, self.DECODE_SYSEEPROM_BACKUP_PATH)
         syseeprom = DecodeSysEeprom()
         assert(syseeprom.get_product_name() != None)
         assert(syseeprom.get_mac_addr() != None)
         assert(syseeprom.get_serial_number() != None)
-        shutil.move('/usr/bin/decode-syseeprom_org', '/usr/bin/decode-syseeprom')
+        shutil.move(self.DECODE_SYSEEPROM_BACKUP_PATH, self.DECODE_SYSEEPROM_PATH)
 
     def test_error_utility(self):
         '''!
         Test when we call the constructor function and decode-syseprom utility is returning an error
         '''
-        shutil.move('/usr/bin/decode-syseeprom', '/usr/bin/decode-syseeprom_org')
-        f = open('/usr/bin/decode-syseeprom', 'w')
+        shutil.move(self.DECODE_SYSEEPROM_PATH, self.DECODE_SYSEEPROM_BACKUP_PATH)
+        f = open(self.DECODE_SYSEEPROM_PATH, 'w')
         f.write('#!/bin/sh\nexit 1\n')
         f.close()
-        st = os.stat('/usr/bin/decode-syseeprom')
-        os.chmod('/usr/bin/decode-syseeprom', st.st_mode | stat.S_IEXEC)
+        st = os.stat(self.DECODE_SYSEEPROM_PATH)
+        os.chmod(self.DECODE_SYSEEPROM_PATH, st.st_mode | stat.S_IEXEC)
         syseeprom = DecodeSysEeprom()
         assert(syseeprom.get_product_name() != None)
         assert(syseeprom.get_mac_addr() != None)
         assert(syseeprom.get_serial_number() != None)
-        os.remove('/usr/bin/decode-syseeprom')
-        shutil.move('/usr/bin/decode-syseeprom_org', '/usr/bin/decode-syseeprom')
+        os.remove(self.DECODE_SYSEEPROM_PATH)
+        shutil.move(self.DECODE_SYSEEPROM_BACKUP_PATH, self.DECODE_SYSEEPROM_PATH)
 
     def test_constructor(self):
         '''!
