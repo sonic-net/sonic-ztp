@@ -137,7 +137,7 @@ class ConfigDBJson:
             raise Exception(e)
 
         # Run config command
-        cmd = '/usr/bin/config '
+        cmd = 'config '
         if self.__clear_config:
             # Stop ZTP DHCP as it might interfere with config reload
             self.__stop_dhcp()
