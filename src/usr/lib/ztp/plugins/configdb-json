@@ -49,16 +49,12 @@ class ConfigDBJson:
         if isString(input_file) is not True:
             raise TypeError('Snmp provided with invalid argument type.')
         self.__input_file = input_file
+
         try:
             self.configDB = ConfigDBConnector()
             self.configDB.connect()
         except:
             self.__bailout("failed to connect to Config DB")
-
-        self.configDB = ConfigDBConnector()
-        if self.configDB is None:
-            __bailout("failed to connect to Config DB")
-        self.configDB.connect()
 
     ## Abort the plugin. Return a non zero return code.
     def __bailout(self, text):
