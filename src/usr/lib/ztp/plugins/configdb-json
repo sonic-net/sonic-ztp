@@ -49,6 +49,11 @@ class ConfigDBJson:
         if isString(input_file) is not True:
             raise TypeError('Snmp provided with invalid argument type.')
         self.__input_file = input_file
+        try:
+            self.configDB = ConfigDBConnector()
+            self.configDB.connect()
+        except:
+            self.__bailout("failed to connect to Config DB")
 
         self.configDB = ConfigDBConnector()
         if self.configDB is None:
@@ -131,7 +136,7 @@ class ConfigDBJson:
             if profile_status is not None and profile_status == 'active':
                 updateActivity('configdb-json: Removing ZTP configuation from Config DB')
                 logger.info('configdb-json: Configuration change detected. Removing ZTP configuation from Config DB.')
-                self.configDB.delete_table("ZTP")
+                self.configDB.mod_entry("ZTP", "mode", None)
                 # Re-configure interfaces to stop ZTP discovery
                 logger.info('configdb-json: Stopping ZTP discovery on interfaces.')
                 updateActivity('configdb-json: Stopping ZTP discovery on interfaces')

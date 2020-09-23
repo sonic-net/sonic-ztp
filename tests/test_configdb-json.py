@@ -168,14 +168,15 @@ class TestClass(object):
         fh_after = d.join("config-after.json")
         self.__write_file(str(fh_after), data)
 
-        cmd = "/bin/sed -i -e 's/\"hostname\": \".*\"/\"hostname\": \"something\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"platform\": \".*\"/\"platform\": \"invalid1\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"mac\": \".*\"/\"mac\": \"invalid2\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"hwsku\": \".*\"/\"hwsku\": \"invalid3\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
+        cfgDict = {}
+        with open(str(fh_after)) as fp:
+            cfgDict = json.load(fp)
+            cfgDict['DEVICE_METADATA']['localhost']['hostname'] = "something"
+            cfgDict['DEVICE_METADATA']['localhost']['platform'] = "invalid1"
+            cfgDict['DEVICE_METADATA']['localhost']['mac'] = "invalid2"
+            cfgDict['DEVICE_METADATA']['localhost']['hwsku'] = "invalid3"
+        with open(str(fh_after), "w") as fp:
+            json.dump(cfgDict, fp, indent=4)
 
         fh = d.join("input.json")
         fh.write("""
@@ -246,14 +247,15 @@ class TestClass(object):
         fh_after = d.join("config-after.json")
         self.__write_file(str(fh_after), data)
 
-        cmd = "/bin/sed -i -e 's/\"hostname\": \".*\"/\"hostname\": \"something\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"platform\": \".*\"/\"platform\": \"invalid1\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"mac\": \".*\"/\"mac\": \"invalid2\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
-        cmd = "/bin/sed -i -e 's/\"hwsku\": \".*\"/\"hwsku\": \"" + hwsku + "_dup"  +"\"/' " + str(fh_after)
-        rc  = runCommand(cmd)
+        cfgDict = {}
+        with open(str(fh_after)) as fp:
+            cfgDict = json.load(fp)
+            cfgDict['DEVICE_METADATA']['localhost']['hostname'] = "something"
+            cfgDict['DEVICE_METADATA']['localhost']['platform'] = "invalid1"
+            cfgDict['DEVICE_METADATA']['localhost']['mac'] = "invalid2"
+            cfgDict['DEVICE_METADATA']['localhost']['hwsku'] = hwsku + "_dup"
+        with open(str(fh_after), "w") as fp:
+            json.dump(cfgDict, fp, indent=4)
 
         fh = d.join("input.json")
         fh.write("""

@@ -81,36 +81,37 @@ class ZTPEngine():
     '''!
     \brief This class performs core functions of ZTP service.
     '''
-    ## Flag to indicate if configuration ztp restart is requested
-    __ztp_restart = False
+    def __init__(self):
+        ## Flag to indicate if configuration ztp restart is requested
+        self.__ztp_restart = False
 
-    ## start time of ZTP engine
-    __ztp_engine_start_time = None
+        ## start time of ZTP engine
+        self.__ztp_engine_start_time = None
 
-    ## Flag to indicate if ZTP configuration has been loaded
-    __ztp_profile_loaded = False
+        ## Flag to indicate if ZTP configuration has been loaded
+        self.__ztp_profile_loaded = False
 
-    ## Run ZTP engine in unit test mode
-    test_mode = False
+        ## Run ZTP engine in unit test mode
+        self.test_mode = False
 
-    ## Flag to determine if interfaces link scan has to be enabled or not
-    __link_scan_enabled = None
+        ## Flag to determine if interfaces link scan has to be enabled or not
+        self.__link_scan_enabled = None
 
-    ## Interface on which ZTP information has been discovered using DHCP
-    __ztp_interface = None
+        ## Interface on which ZTP information has been discovered using DHCP
+        self.__ztp_interface = None
 
-    ## ZTP JSON object
-    objztpJson = None
+        ## ZTP JSON object
+        self.objztpJson = None
 
-    ## Flag to indicate reboot
-    reboot_on_completion = False
+        ## Flag to indicate reboot
+        self.reboot_on_completion = False
 
-    ## Interfaces state table
-    __intf_state = dict()
+        ## Interfaces state table
+        self.__intf_state = dict()
 
-    ## Redis DB connectors
-    configDB = None
-    applDB   = None
+        ## Redis DB connectors
+        self.configDB = None
+        self.applDB   = None
 
     def __connect_to_redis(self):
         '''!
