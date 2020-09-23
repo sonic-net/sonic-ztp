@@ -24,6 +24,7 @@ import time
 import stat
 import traceback
 import json
+from swsssdk import ConfigDBConnector
 
 from ztp.ZTPObjects import URL, DynamicURL
 from ztp.ZTPSections import ConfigSection
@@ -36,6 +37,8 @@ class ConfigDBJson:
     This class handle the 'configdb-json' plugin
     '''
 
+    configDB = None
+
     def __init__(self, input_file):
         '''!
         Constructor. We only store the json data input file, all the logic is
@@ -46,6 +49,12 @@ class ConfigDBJson:
         if isString(input_file) is not True:
             raise TypeError('Snmp provided with invalid argument type.')
         self.__input_file = input_file
+
+        try:
+            self.configDB = ConfigDBConnector()
+            self.configDB.connect()
+        except:
+            self.__bailout("failed to connect to Config DB")
 
     ## Abort the plugin. Return a non zero return code.
     def __bailout(self, text):
@@ -59,12 +68,71 @@ class ConfigDBJson:
         else:
             return None
 
+    # Verify that the config file is a syntactically correct json file and is
+    # filled in with correct information
+    def __sanitize_config(self, config_file):
+        try:
+            with open(config_file) as json_file:
+                json_dict = json.load(json_file)
+
+            if self.__overwrite_device_metadata:
+                logger.info('configdb-json: Using DEVICE_METADATA from the downloaded ConfigDB JSON file.')
+                return
+
+            # Do not trust the switch specific configuration in the user provided config file.
+            # Use the running config information to fill out important DEVICE_METADATA values.
+            if json_dict.get('DEVICE_METADATA') is not None and \
+               json_dict.get('DEVICE_METADATA').get('localhost') is not None:
+                platform_fields = ['platform', 'hwsku', 'mac']
+                # Extract device metadata from the configuration file
+                new_device_metadata = json_dict.get('DEVICE_METADATA').get('localhost')
+                # Extract device metadata from the ConfigDB
+                running_device_metadata = self.configDB.get_entry("DEVICE_METADATA", "localhost")
+                # Ensure that platform specific fields and their values are restored from the
+                # running configuration and do not assume that the values in the downloaded
+                # configuration file are accurate.
+                for field in platform_fields:
+                    # Verify if the user pushed a config to use a different hwsku for the platform
+                    if field == 'hwsku' and new_device_metadata.get(field) is not None and \
+                       new_device_metadata['hwsku'] != running_device_metadata['hwsku']:
+                        hwsku_dir = '/usr/share/sonic/device/{}/{}'.format(running_device_metadata['platform'], \
+                                                                           new_device_metadata['hwsku'])
+                        if os.path.isdir(hwsku_dir):
+                            logger.info('configdb-json: Using hwsku %s from the downloaded ConfigDB JSON file.' %(new_device_metadata['hwsku']))
+                            continue
+                        else:
+                            logger.warning('configdb-json: Invalid hwsku %s specified in the downloaded ConfigDB JSON file.' % (new_device_metadata['hwsku']))
+                            logger.warning('configdb-json: Using hwsku %s from the running-config.' % (running_device_metadata['hwsku']))
+                    new_device_metadata[field] = running_device_metadata[field]
+
+            elif self.__clear_config:
+                # If the user is sending a full config file without DEVICE_METADATA, use the
+                # values from the running configuration.
+                new_localhost_data = self.configDB.get_entry("DEVICE_METADATA", "localhost")
+                if json_dict.get('DEVICE_METADATA') is not None:
+                   json_dict['DEVICE_METADATA']['localhost'] = new_localhost_data
+                else:
+                   json_dict['DEVICE_METADATA'] = { 'localhost' : new_localhost_data }
+
+            with open(config_file, 'w') as outfile:
+                json.dump(json_dict, outfile, indent=4, sort_keys=True)
+                outfile.flush()
+
+        except Exception as e:
+            os.remove(config_file)
+            self.__bailout('Error[%s] validating and sanitizing downloaded config_db.json file' % (str(e)))
+            raise Exception(e)
+
     def __stop_dhcp(self):
-            (rc, op, errStr) = runCommand("redis-cli -n 4 HGET \"ZTP|mode\" \"profile\"")
-            if rc == 0 and len(op) != 0 and op[0] == 'active':
+            data = self.configDB.get_entry("ZTP", "mode")
+            if data is not None and data.get("profile") is not None:
+                profile_status = data.get("profile")
+            else:
+                profile_status = None
+            if profile_status is not None and profile_status == 'active':
                 updateActivity('configdb-json: Removing ZTP configuation from Config DB')
                 logger.info('configdb-json: Configuration change detected. Removing ZTP configuation from Config DB.')
-                runCommand('redis-cli -n 4 DEL "ZTP|mode"', capture_stdout=False)
+                self.configDB.mod_entry("ZTP", "mode", None)
                 # Re-configure interfaces to stop ZTP discovery
                 logger.info('configdb-json: Stopping ZTP discovery on interfaces.')
                 updateActivity('configdb-json: Stopping ZTP discovery on interfaces')
@@ -103,6 +171,7 @@ class ConfigDBJson:
             # Read options
             self.__clear_config = getField(section_data, 'clear-config', bool, default_value=True)
             self.__save_config = getField(section_data, 'save-config', bool, default_value=False)
+            self.__overwrite_device_metadata = getField(section_data, 'overwrite-device-metadata', bool, default_value=False)
             
         except Exception as e:
             self.__bailout(str(e))
@@ -126,15 +195,8 @@ class ConfigDBJson:
         if os.path.isfile(dest_file) is False:
             self.__bailout('Download of [%s] failed' % (dest_file))
 
-        # Verify that the file is a syntactically correct json file
-        try:
-            with open(dest_file) as json_file:
-                json_dict = json.load(json_file)
-                json_file.close()
-        except (IOError, ValueError) as e:
-            os.remove(dest_file)
-            self.__bailout('Invalid config_db.json file downloaded from %s, %s' % (url_str, str(e)))
-            raise Exception(e)
+        # validate and sanitize input configuration file
+        self.__sanitize_config(dest_file)
 
         # Run config command
         cmd = 'config '

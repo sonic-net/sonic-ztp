@@ -26,6 +26,7 @@ import argparse
 import re
 import json
 import traceback
+from natsort import natsorted
 from urllib.parse import urlparse
 from ztp.ZTPSections import ZTPJson
 import ztp.ZTPCfg
@@ -33,6 +34,7 @@ from ztp.Downloader import Downloader
 from ztp.Logger import logger
 from ztp.ZTPLib import getTimestamp, runCommand, runcmd_pids 
 from ztp.ZTPLib import getField, getCfg, validateZtpCfg, updateActivity, systemReboot
+from swsssdk import ConfigDBConnector, SonicV2Connector
 
 def check_pid(pid):
     ## Check For the existence of a unix pid
@@ -79,46 +81,142 @@ class ZTPEngine():
     '''!
     \brief This class performs core functions of ZTP service.
     '''
-    ## Flag to indicate if configuration ztp restart is requested
-    __ztp_restart = False
+    def __init__(self):
+        ## Flag to indicate if configuration ztp restart is requested
+        self.__ztp_restart = False
 
-    ## start time of ZTP engine
-    __ztp_engine_start_time = None
+        ## start time of ZTP engine
+        self.__ztp_engine_start_time = None
 
-    ## Flag to indicate if ZTP configuration has been loaded
-    __ztp_profile_loaded = False
+        ## Flag to indicate if ZTP configuration has been loaded
+        self.__ztp_profile_loaded = False
 
-    ## Run ZTP engine in unit test mode
-    test_mode = False
+        ## Run ZTP engine in unit test mode
+        self.test_mode = False
 
-    ## Flag to determine if interfaces link scan has to be enabled or not
-    __link_scan_enabled = None
+        ## Flag to determine if interfaces link scan has to be enabled or not
+        self.__link_scan_enabled = None
 
-    ## Interface on which ZTP information has been discovered using DHCP
-    __ztp_interface = None
+        ## Interface on which ZTP information has been discovered using DHCP
+        self.__ztp_interface = None
 
-    ## ZTP JSON object
-    objztpJson = None
+        ## ZTP JSON object
+        self.objztpJson = None
 
-    ## Flag to indicate reboot
-    reboot_on_completion = False
+        ## Flag to indicate reboot
+        self.reboot_on_completion = False
 
-    ## Interfaces state table
-    __intf_state = dict()
+        ## Interfaces state table
+        self.__intf_state = dict()
+
+        ## Redis DB connectors
+        self.configDB = None
+        self.applDB   = None
+
+    def __connect_to_redis(self):
+        '''!
+        Establishes connection to the redis DB
+           @return  False - If connection to the redis DB failed
+                    True  - If connection to the redis DB is successful
+        '''
+        # Connect to ConfigDB
+        try:
+            if self.configDB is None:
+                self.configDB = ConfigDBConnector()
+                self.configDB.connect()
+        except:
+            self.configDB = None
+            return False
+
+        # Connect to AppDB
+        try:
+            if self.applDB is None:
+                self.applDB = SonicV2Connector()
+                self.applDB.connect(self.applDB.APPL_DB)
+        except:
+            self.applDB = None
+            return False
+        return True
+
+    def __detect_intf_state(self):
+        '''!
+        Identifies all the interfaces on which ZTP discovery needs to be performed.
+        Link state of each identified interface is checked and stored in a dictionary
+        for reference.
+
+           @return  True   - If an interface moved from link down to link up state
+                    False  - If no interface transitions have been observed
+        '''
+        link_up_detected = False
+        intf_data = os.listdir('/sys/class/net')
+        if getCfg('feat-inband'):
+            r_intf = re.compile("Ethernet.*|eth.*")
+        else:
+            r_intf = re.compile("eth.*")
+        intf_list = list(filter(r_intf.match, intf_data))
+        for intf in natsorted(intf_list):
+            try:
+                if intf[0:3] == 'eth':
+                    fh = open('/sys/class/net/{}/operstate'.format(intf), 'r')
+                    operstate = fh.readline().strip().lower()
+                    fh.close()
+                else:
+                    port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
+                    operstate = port_entry.get(b'oper_status').decode('utf-8').lower()
+            except:
+                operstate = 'down'
+            if ((self.__intf_state.get(intf) is None) or \
+                (self.__intf_state.get(intf).get('operstate') != operstate)) and \
+                operstate == 'up':
+                link_up_detected = True
+                logger.info('Link up detected for interface %s' % intf)
+            if self.__intf_state.get(intf) is None:
+                self.__intf_state[intf] = dict()
+            self.__intf_state[intf]['operstate'] = operstate
+
+        # Weed out any stale interfaces that may exist when an expanded port is joined back
+        intf_snapshot = list(self.__intf_state.keys())
+        for intf in intf_snapshot:
+            if intf not in intf_list:
+                del self.__intf_state[intf]
+
+        return link_up_detected
+
+    def __is_ztp_profile_active(self):
+        '''!
+        Checks if the ZTP configuration profile is loaded as the switch running
+        configuration and is active
+
+           @return  False - ZTP configuration profile is not active
+                    True  - ZTP configuration profile is active
+        '''
+        profile_active = False
+        if self.__connect_to_redis():
+            # Check if ZTP configuration is active
+            data = self.configDB.get_entry("ZTP", "mode")
+            if data is not None and data.get("profile") is not None:
+                if data.get("profile") == 'active':
+                    profile_active = True
+        return profile_active
 
     def __link_scan(self):
         '''!
         Scan all in-band interface's operational status to detect a link up event
+           @return  False - If a link scan did not detect at least one switch port link up event
+                    True  - If at least one switch port link up event has been detected
         '''
 
         # Do not attempt link scan when in test mode
         if self.test_mode:
             return False
 
+        if self.__connect_to_redis() is False:
+            self.__link_scan_enabled = None
+            return False
+
         if self.__link_scan_enabled is None:
             # Check if ZTP configuration is active
-            (rc, op, errStr) = runCommand("redis-cli -n 4 HGET \"ZTP|mode\" \"profile\"")
-            if rc == 0 and len(op) != 0 and op[0] == 'active':
+            if self.__is_ztp_profile_active():
                 self.__link_scan_enabled = 'True'
             else:
                 self.__link_scan_enabled = 'False'
@@ -126,37 +224,8 @@ class ZTPEngine():
         if self.__link_scan_enabled == 'False':
             return False
 
-        link_scan_result = False
-        (rc, port_table_data, err) = runCommand('redis-dump -d 0 -k PORT_TABLE:Ethernet*')
-        if rc != 0:
-            port_table = None
-        else:
-            try:
-                port_table = json.loads(''.join(port_table_data))
-            except:
-                port_table = None
-        intf_data = os.listdir('/sys/class/net')
-        if getCfg('feat-inband'):
-            r_intf = re.compile("Ethernet.*|eth.*")
-        else:
-            r_intf = re.compile("eth.*")
-        intf_list = list(filter(r_intf.match, intf_data))
-        for intf in intf_list:
-            try:
-                if intf[0:3] == 'eth':
-                    fh = open('/sys/class/net/{}/operstate'.format(intf), 'r')
-                    operstate = fh.readline().strip().lower()
-                    fh.close()
-                else:
-                    operstate = port_table.get('PORT_TABLE:'+intf).get('value').get('oper_status').lower()
-            except:
-                operstate = 'down'
-            if ((self.__intf_state.get(intf) is None) or \
-                (self.__intf_state.get(intf) != operstate)) and \
-                operstate == 'up':
-                link_scan_result = True
-                logger.info('Link up detected for interface %s' % intf)
-            self.__intf_state[intf] = operstate
+        # Populate data of all ztp eligible interfaces
+        link_scan_result = self.__detect_intf_state()
         return link_scan_result
 
     def __cleanup_dhcp_leases(self):
@@ -212,6 +281,8 @@ class ZTPEngine():
         '''!
          Load ZTP configuration profile if there is no saved configuration file.
          This establishes connectivity to all interfaces and starts DHCP discovery.
+           @return  False - If ZTP configuration profile is not loaded
+                    True  - If ZTP configuration profile is loaded
         '''
         # Do not attempt to install ZTP configuration if working in unit test mode
         if self.test_mode:
