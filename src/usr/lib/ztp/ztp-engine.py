@@ -131,7 +131,7 @@ class ZTPEngine():
         # Connect to AppDB
         try:
             if self.applDB is None:
-                self.applDB = SonicV2Connector(host='127.0.0.1')
+                self.applDB = SonicV2Connector()
                 self.applDB.connect(self.applDB.APPL_DB)
         except:
             self.applDB = None
