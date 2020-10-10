@@ -32,6 +32,15 @@
 
 {%- endfor %}
    },
+{% if ZTP_IPV6 == "true" and ZTP_INBAND == "true" %}
+   "INTERFACE": {
+{%- for port in PORT -%}
+         "{{port}}" : {
+                "ipv6_use_link_local_only": "enable"
+       }{%- if loop.last == False -%},{% endif %}
+{%- endfor %}
+   },
+{% endif %}
    "ZTP" : {
     "mode" : {
         "profile" : "active",
