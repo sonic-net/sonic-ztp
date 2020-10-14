@@ -146,6 +146,39 @@ class ZTPJson(ConfigSection):
     '''!
     \brief This class is use to store and access ZTP JSON data downloaded by ZTP service.
     '''
+
+    def updateStatus(self, obj, status):
+        super().updateStatus(obj, status)
+        # Update the shadow ZTP JSON file with new information
+        self.__writeShadowJSON()
+
+    def __writeShadowJSON(self):
+        '''!
+          Save contents of ZTP JSON in a shadow file which includes data that provides
+          just provisioning status information and filters out all other sensitive information.
+        '''
+        allowed_keys = ['ignore-result', 'reboot-on-success', \
+                        'reboot-on-failure', 'halt-on-failure', \
+                        'description', 'timestamp', 'status', \
+                        'start-timestamp', 'error']
+        section_names = list()
+        shadowObj, shadowJsonDict  = JsonReader(self.json_dst_file, getCfg('ztp-json-shadow'), indent=getCfg('json-indent'))
+        shadowDict = shadowJsonDict['ztp']
+        for  k, v in shadowDict.items():
+            # Identify configuration sections
+            if isinstance(v, dict):
+                section_names.append(k)
+
+        for section in section_names:
+            section_elements = list(shadowDict[section].keys())
+            for sub_k in section_elements:
+                # Remove sensitive data
+                if sub_k not in allowed_keys:
+                    del shadowDict[section][sub_k]
+
+        shadowObj.writeJson()
+        os.chmod(getCfg('ztp-json-shadow'), 0o644)
+
     def __getitem__(self, key):
         '''!
          Get value of specified key in the top level ztp section read from ZTP JSON file.
@@ -175,6 +208,8 @@ class ZTPJson(ConfigSection):
             self.updateStatus(self.ztpDict, val)
         else:
             self.ztpDict[key] = val
+        # Update the shadow ZTP JSON file with new information
+        self.__writeShadowJSON()
 
     def pluginArgs(self, section_name):
         '''!
@@ -420,3 +455,5 @@ class ZTPJson(ConfigSection):
 
         # Write ZTP JSON data to file
         self.objJson.writeJson()
+        # Update the shadow ZTP JSON file with new information
+        self.__writeShadowJSON()

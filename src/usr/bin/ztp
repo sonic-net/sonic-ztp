@@ -119,6 +119,10 @@ def getActivityString():
        print ('ZTP Service is not running\n')
        return
 
+    if os.geteuid() != 0:
+       print ('ZTP Service is active\n')
+       return
+
     activity_str = None
     f = getCfg('ztp-activity')
     if os.path.isfile(f):
@@ -160,6 +164,8 @@ def ztp_erase(yesFlag):
     # Destroy current provisioning data
     if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
         os.remove(getCfg('ztp-json', ztp_cfg=ztp_cfg))
+    if os.path.isfile(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg)):
+        os.remove(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg))
 
 ## Administratively disable ZTP.
 #  It also stops ztp service if it found active, before modifying the configuration.
@@ -219,8 +225,8 @@ def ztp_run(yesFlag):
 def ztp_status_code():
     if getCfg('admin-mode', ztp_cfg=ztp_cfg) is False:
         print ('0:DISABLED')
-    elif os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
-        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+    elif os.path.isfile(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg), indent=4)
         ztpDict = jsonDict.get('ztp')
         if ztpDict.get('status') == 'BOOT':
             print ('3:NOT-STARTED')
@@ -241,8 +247,8 @@ def ztp_status_code():
 def ztp_status_terse():
     # Print overall ZTP status
     print ('ZTP Admin Mode : %r' % getCfg('admin-mode', ztp_cfg=ztp_cfg))
-    if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
-        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+    if os.path.isfile(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg), indent=4)
         ztpDict = jsonDict.get('ztp')
         if ztp_active() != 0:
             print ('ZTP Service    : Inactive')
@@ -284,8 +290,8 @@ def ztp_status():
     print('%s' % 'ZTP')
     print('========================================')
     print ('ZTP Admin Mode : %r' % getCfg('admin-mode', ztp_cfg=ztp_cfg))
-    if os.path.isfile(getCfg('ztp-json', ztp_cfg=ztp_cfg)):
-        objJson, jsonDict = JsonReader(getCfg('ztp-json', ztp_cfg=ztp_cfg), indent=4)
+    if os.path.isfile(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg)):
+        objJson, jsonDict = JsonReader(getCfg('ztp-json-shadow', ztp_cfg=ztp_cfg), indent=4)
         ztpDict = jsonDict.get('ztp')
         if ztp_active() != 0:
             print ('ZTP Service    : Inactive')
@@ -343,9 +349,11 @@ def ztp_status():
 
 def main():
 
-    # Only privileged users can execute this command
+    # Check the user's root privileges
     if os.geteuid() != 0:
-        sys.exit("Root privileges required for this operation")
+        root_user = False
+    else:
+        root_user = True
 
     # Add allowed arguments
     parser = argparse.ArgumentParser(description="Zero Touch Provisioning configuration and status monitoring tool",
@@ -392,6 +400,9 @@ run      Restart ZTP\nstatus   Display current state of ZTP and last known resul
             print('Exception [%s] occured while reading ZTP configuration file \'%s\'.' % (str(e), cfg_json))
             print('Exiting ZTP service.')
             sys.exit(1)
+
+    if root_user == False and cmd in ['enable', 'disable', 'run', 'erase']:
+        sys.exit("Root privileges required for this operation")
 
     # Execute the command
     try:

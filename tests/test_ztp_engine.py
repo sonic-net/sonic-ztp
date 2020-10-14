@@ -129,7 +129,7 @@ class TestClass(object):
         runCommand("systemctl stop ztp")
         # Destroy current provisioning data
         file_list = ["ztp-json-local", "ztp-json-opt67", "ztp-json", "provisioning-script", "opt67-url", "opt59-v6-url", \
-                     "opt239-url", "opt239-v6-url", "ztp-restart-flag", "opt66-tftp-server", "acl-url", "graph-url"]
+                     "opt239-url", "opt239-v6-url", "ztp-restart-flag", "opt66-tftp-server", "acl-url", "graph-url", "ztp-json-shadow"]
 
         for filename in file_list:
             if os.path.isfile(self.cfgGet(filename)):
