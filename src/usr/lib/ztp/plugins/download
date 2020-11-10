@@ -1,0 +1,161 @@
+#!/usr/bin/python3
+'''
+Copyright 2020 Broadcom. The term "Broadcom" refers to Broadcom Inc.
+and/or its subsidiaries.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
+
+'''
+Usage:
+Define a json array with the field name as "files". The array can contain
+a list of url or dynamic-url json objects as described in the ZTP Manual.
+
+Example:
+The below is an example ztp.json which makes use of the download plugin
+to download the switch configuraiton file, frr configuration and post
+provisioning script. After downloading the files, each of the files are
+used by the next configuration sections and thus not requiring to reach
+out to the remote web server again.
+
+{
+  "ztp": {
+    "01-download": {
+      "files": [
+        {
+          "dynamic-url": {
+            "source": {
+              "prefix" : "http://192.168.1.1/",
+              "identifier" : "hostname",
+              "suffix" : "_config_db.json"
+            },
+            "destination": "/home/admin/config_db.json"
+          }
+        },
+        {
+          "dynamic-url": {
+            "source": {
+              "prefix" : "http://192.168.1.1/",
+              "identifier" : "hostname",
+              "suffix" : "_frr.conf"
+            },
+            "destination": "/etc/sonic/frr/frr.conf"
+          }
+        },
+        {
+          "url": {
+            "source": "http://192.168.1.1/post-install.sh",
+            "destination": "/home/admin/post-install.sh"
+          }
+        }
+      ]
+    },
+    "02-configdb-json": {
+      "url": {
+        "source": "file:///home/admin/config_db.json"
+      }
+    },
+    "03-post-install": {
+      "plugin": "file:///home/admin/post-install.sh"
+    }
+  }
+}
+'''
+
+import os
+import sys
+import time
+import shutil
+
+from ztp.ZTPLib import updateActivity, getField, runCommand
+from ztp.ZTPObjects import URL, DynamicURL
+from ztp.ZTPSections import ConfigSection
+from ztp.Logger import logger
+
+def main():
+  try:
+    exit_code = 0
+    objSection     = ConfigSection(sys.argv[1])
+    keys = objSection.jsonDict.keys()
+    if len(keys) == 0:
+        logger.error('download: Configuration section name not found.')
+        sys.exit(exit_code)
+    section_name = next(iter(keys))
+    section_data   = objSection.jsonDict.get(section_name)
+
+    files = getField(section_data, 'files', list, None)
+    if files is None:
+        logger.error("Download: Failed to find the list of files to download")
+        exit_code = 1
+    else:
+        for item in files:
+            if isinstance(item, dict):
+               curl_args = None
+               permissions = None
+               url_data = None
+               for k in item.keys():
+                   if k == "url" or k == 'dynamic-url':
+                       url_type = k
+                       url_data = item.get(url_type)
+                   elif k == "permissions":
+                       permissions = item.get(k)
+               # Validate if a valid url information is provided
+               if url_data is None:
+                   continue
+               # Always include argument to create destination directory hierarchy
+               if isinstance(url_data, dict):
+                   curl_args = url_data.get('curl-arguments')
+               elif url_data:
+                   _url_data = str(url_data)
+                   url_data = { "source" : _url_data }
+               if curl_args:
+                   url_data['curl-arguments'] =  "--create-dirs " + curl_args
+               else:
+                   url_data['curl-arguments'] = "--create-dirs"
+               if url_type == 'url':
+                   objURL = URL(item.get(url_type))
+               elif url_type == 'dynamic-url':
+                   objURL = DynamicURL(item.get(url_type))
+               else:
+                   objURL = None
+
+               # Download valid URL's
+               if objURL is not None:
+                   logger.info("download: Start downloading file '%s'." %(objURL.getSource()))
+                   updateActivity("Start downloading file '%s'" %(objURL.getSource()))
+                   (rc, dest_file) = objURL.download()
+                   if rc == 0:
+                       # Set file permissions if requested to
+                       if permissions:
+                           rv = runCommand("chmod " + permissions + " " + dest_file, capture_stdout=False)
+                           if rv == 0:
+                               logger.info("download: Permissions of the file '%s' set to '%s'" % (dest_file, permissions))
+                           else:
+                               logger.error("download: Failed to set permissions of the file '%s' to '%s'" % (dest_file, permissions))
+                               exit_code = 1
+                       logger.info("download: Completed downloading the file '%s' to '%s'." % (objURL.getSource(), dest_file))
+                   else:
+                       logger.error("download: Failed to download the file '%s'." % (objURL.getSource()))
+                       exit_code = 1
+               elif url_type == 'url' or url_type == 'dynamic-url':
+                   logger.error("Download: Failed to resolve object '%s'" % (item))
+                   exit_code = 1
+
+    sys.exit(exit_code)
+
+  except Exception as e:
+    print('download: Exception [%s] encountered while processing.' % (str(e)))
+    sys.exit(1)
+
+if __name__== "__main__":
+   main()
