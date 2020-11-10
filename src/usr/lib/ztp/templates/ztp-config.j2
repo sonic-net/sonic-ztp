@@ -23,6 +23,9 @@
 {% if PORT[port].valid_speeds is defined and PORT[port].valid_speeds != "" %}
                 "valid_speeds": "{{ PORT[port].valid_speeds }}",
 {% endif %}
+{% if PORT[port].fec is defined and PORT[port].fec != "" %}
+                "fec": "{{ PORT[port].fec }}",
+{% endif %}
 {% if ZTP_INBAND == "true" %}
                 "admin_status": "up"
 {% else %}
