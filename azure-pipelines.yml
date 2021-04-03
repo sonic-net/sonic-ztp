@@ -31,7 +31,7 @@ stages:
         set -ex
 
         dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb $(Build.ArtifactStagingDirectory)/
-    - displayName: "Build"
+      displayName: "Build"
 
     - publish: $(Build.ArtifactStagingDirectory)/
       artifact: sonic-ztp
