@@ -8,11 +8,6 @@ trigger:
     include:
     - master
 
-pr:
-  branches:
-    include:
-    - master
-
 stages:
 - stage: Build
   jobs:
