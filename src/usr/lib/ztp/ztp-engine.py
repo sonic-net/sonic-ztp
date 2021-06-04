@@ -34,7 +34,7 @@ from ztp.Downloader import Downloader
 from ztp.Logger import logger
 from ztp.ZTPLib import getTimestamp, runCommand, runcmd_pids 
 from ztp.ZTPLib import getField, getCfg, validateZtpCfg, updateActivity, systemReboot
-from swsssdk import ConfigDBConnector, SonicV2Connector
+from swsscommon.swsscommon import ConfigDBConnector, SonicV2Connector
 
 def check_pid(pid):
     ## Check For the existence of a unix pid
