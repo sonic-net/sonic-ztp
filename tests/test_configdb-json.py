@@ -290,7 +290,7 @@ class TestClass(object):
             assert(json_dict.get('DEVICE_METADATA').get('localhost').get('hwsku') == hwsku + "_dup")
 
         # Restore initial configuration
-        cmd = 'config reload -y ' + str(fh_before)
+        cmd = 'config reload -y -f ' + str(fh_before)
         rc = runCommand(cmd, capture_stdout=False)
         assert(rc == 0)
         rc = runCommand('config save -y', capture_stdout=False)

@@ -138,7 +138,7 @@ load_config()
     fi
 
     if [ -e ${DEST_FILE} ]; then
-        config reload ${DEST_FILE} -y
+        config reload ${DEST_FILE} -y -f
         rm -f ${TMP_ZTP_CONFIG_DB_JSON}
         return 0
     else
@@ -248,7 +248,7 @@ if [ "$CMD" = "remove" ] ; then
             if [ -e ${CONFIG_DB_JSON} ]; then
                 updateActivity "Removing ZTP configuration profile and loading startup configuration"
                 echo "Removing ZTP configuration profile. Loading startup configuration."
-                config reload ${CONFIG_DB_JSON} -y
+                config reload ${CONFIG_DB_JSON} -y -f
             else
                 updateActivity "Removing ZTP configuration profile and loading factory default configuration"
                 echo "Removing ZTP configuration profile. Loading factory default configuration."
