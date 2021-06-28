@@ -161,8 +161,11 @@ class ZTPEngine():
                     operstate = fh.readline().strip().lower()
                     fh.close()
                 else:
-                    port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
-                    operstate = port_entry.get(b'oper_status').decode('utf-8').lower()
+                    if self.applDB.exists(self.applDB.APPL_DB, 'PORT_TABLE:'+intf):
+                        port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
+                        operstate = port_entry.get('oper_status').lower()
+                    else:
+                        operstate = 'down'
             except:
                 operstate = 'down'
             if ((self.__intf_state.get(intf) is None) or \
