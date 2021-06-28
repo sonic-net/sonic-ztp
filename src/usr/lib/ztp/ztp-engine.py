@@ -34,7 +34,7 @@ from ztp.Downloader import Downloader
 from ztp.Logger import logger
 from ztp.ZTPLib import getTimestamp, runCommand, runcmd_pids 
 from ztp.ZTPLib import getField, getCfg, validateZtpCfg, updateActivity, systemReboot
-from swsssdk import ConfigDBConnector, SonicV2Connector
+from swsscommon.swsscommon import ConfigDBConnector, SonicV2Connector
 
 def check_pid(pid):
     ## Check For the existence of a unix pid
@@ -161,8 +161,11 @@ class ZTPEngine():
                     operstate = fh.readline().strip().lower()
                     fh.close()
                 else:
-                    port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
-                    operstate = port_entry.get(b'oper_status').decode('utf-8').lower()
+                    if self.applDB.exists(self.applDB.APPL_DB, 'PORT_TABLE:'+intf):
+                        port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
+                        operstate = port_entry.get('oper_status').lower()
+                    else:
+                        operstate = 'down'
             except:
                 operstate = 'down'
             if ((self.__intf_state.get(intf) is None) or \

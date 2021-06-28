@@ -24,7 +24,7 @@ import time
 import stat
 import traceback
 import json
-from swsssdk import ConfigDBConnector
+from swsscommon.swsscommon import ConfigDBConnector
 
 from ztp.ZTPObjects import URL, DynamicURL
 from ztp.ZTPSections import ConfigSection
