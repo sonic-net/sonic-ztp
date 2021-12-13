@@ -3,8 +3,7 @@ Maintainer: Rajendra Dendukuri <rajendra.dendukuri@broadcom.com>
 Uploaders: Olivier Singla <olivier.singla@broadcom.com>
 Section: devel
 Priority: optional
-Build-Depends: debhelper (>= 8.0.0),
-               dh-systemd
+Build-Depends: debhelper (>= 8.0.0)
 Standards-Version: 3.9.3
 Homepage: https://github.com/Azure/sonic-ztp
 
