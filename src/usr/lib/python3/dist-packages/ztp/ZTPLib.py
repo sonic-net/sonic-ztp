@@ -95,7 +95,7 @@ def runCommand(cmd, capture_stdout=True, use_shell=False):
             else:
                 shcmd = cmd
         if capture_stdout is True:
-            proc = subprocess.Popen(shcmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1, close_fds=True)
+            proc = subprocess.Popen(shcmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
             pid = proc.pid
             runcmd_pids.append(pid)
             output_stdout, output_stderr = proc.communicate()
