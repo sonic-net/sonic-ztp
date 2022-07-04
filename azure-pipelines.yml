@@ -30,7 +30,8 @@ stages:
     - script: |
         set -ex
 
-        dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb $(Build.ArtifactStagingDirectory)/
+        dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc)
+        cp ../*.deb $(Build.ArtifactStagingDirectory)/
       displayName: "Build"
 
     - publish: $(Build.ArtifactStagingDirectory)/
