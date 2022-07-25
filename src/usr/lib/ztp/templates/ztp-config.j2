@@ -45,5 +45,12 @@
         "product-name" : "{{PRODUCT_NAME}}",
         "serial-no" : "{{SERIAL_NO}}"
     }
-   }
+   },
+{% if ZTP_INBAND == "true" %}
+    "COPP_TRAP": {
+        "l2dhcp": {
+            "always_enabled": "true"
+        }
+    }
+{% endif %}
 }

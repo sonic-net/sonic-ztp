@@ -257,6 +257,7 @@ if [ "$CMD" = "remove" ] ; then
         else
             # Remove ZTP configuration from config-db
             sonic-db-cli CONFIG_DB DEL "ZTP|mode" > /dev/null
+            sonic-db-cli CONFIG_DB DEL "COPP_TRAP|l2dhcp" > /dev/null
         fi
 
         updateActivity "Restarting network configuration"
