@@ -21,3 +21,13 @@ clean:
 	@rm -f debian/files
 	@rm -rf doc/html
 	@rm -f $(PKG)_*_all.deb
+
+
+
+
+
+
+
+
+
+
