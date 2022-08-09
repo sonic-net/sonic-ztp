@@ -18,6 +18,8 @@
 # Purpose:      Used by dhclient-script to configure IP address for front panel interface
 #
 
+export PATH=/usr/local/bin:$PATH
+
 IPprefix_by_netmask () {
     c=0 x=0$( printf '%o' $( echo $1 | sed 's/\./ /g') )
     while [ $x -gt 0 ]; do
