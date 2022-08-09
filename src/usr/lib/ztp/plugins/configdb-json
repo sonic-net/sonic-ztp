@@ -210,7 +210,7 @@ class ConfigDBJson:
             logger.info('configdb-json: Applying config_db.json to Config DB.')
             updateActivity('configdb-json: Applying config_db.json to Config DB')
             cmd += 'load'
-        cmd += ' -y ' + dest_file;
+        cmd += ' -f -y ' + dest_file;
         rc = runCommand(cmd, capture_stdout=False)
         if rc != 0:
             logger.error('configdb-json: Command \'%s\' failed with exit code(%d).' %(cmd, rc))
