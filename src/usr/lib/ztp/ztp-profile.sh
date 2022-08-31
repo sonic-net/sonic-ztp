@@ -221,9 +221,6 @@ if [ "$CMD" = "install" ] ; then
         # Restart interface configuration again to pickup newly created interfaces
         # to start DHCP discovery
         if [ "$(ztp status -c)" = "4:IN-PROGRESS" ]; then
-            echo "sleeping 60 seconds"
-            sleep 60
-
             echo "Restarting network configuration."
             updateActivity "Restarting network configuration"
             systemctl restart interfaces-config
