@@ -48,6 +48,7 @@ defaultCfg = dict( \
   "log-file"             : "/var/log/ztp.log", \
   "log-level"            : "INFO", \
   "monitor-startup-config" : True, \
+  "pre-ztp-plugin-download" : True, \
   "restart-ztp-interval": 300, \
   "reboot-on-success"    : False, \
   "reboot-on-failure"    : False, \
