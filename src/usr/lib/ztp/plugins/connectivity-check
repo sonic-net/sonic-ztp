@@ -39,7 +39,7 @@ class ConnectivityCheck:
         '''
         self.__input_file = input_file
 
-    def pingHosts(self, host_list, retry_count, retry_interval, ping_count, deadline, timeout, ipv6=False):
+    def pingHosts(self, host_list, interface, retry_count, retry_interval, ping_count, deadline, timeout, args, ipv6=False, dhcp=False):
 
         # Prepare list of hosts to ping
         if not isinstance(host_list, list):
@@ -61,14 +61,20 @@ class ConnectivityCheck:
              iter_list = list(_host_list)
              # Loop through current host list
              for host in iter_list:
+                if interface is not None and not isString(interface):
+                    interface = None
                 if isString(host):
                     pingCmd = "ping -q -c " + str(ping_count) + " "
                     if deadline is not None:
                         pingCmd += "-w " + str(deadline) + " "
                     if timeout is not None:
                         pingCmd += "-W " + str(timeout) + " "
+                    if interface is not None:
+                        pingCmd += "-I " + interface + " "
                     if ipv6:
-                      pingCmd = pingCmd + " -6 "
+                        pingCmd = pingCmd + " -6 "
+                    if args is not None:
+                        pingCmd = pingCmd + " " + args + " "
                     logger.info('connectivity-check: Pinging host \'%s\'.' % (host))
                     updateActivity('connectivity-check: Pinging host \'%s\'.' % (host))
                     # Ping the host
@@ -76,15 +82,27 @@ class ConnectivityCheck:
                     if rv == 0:
                          # Host is alive, remove it from the list
                          _host_list.remove(host)
-                    logger.info('connectivity-check: Host \'%s\' not reachable.' % (host))
-                    updateActivity('connectivity-check: Host \'%s\' not reachable.' % (host))
+                    else:
+                        logger.info('connectivity-check: Host \'%s\' not reachable.' % (host))
+                        updateActivity('connectivity-check: Host \'%s\' not reachable.' % (host))
                 else:
                     # Discard invalid hosts
                     _host_list.remove(host)
 
              if len(_host_list) == 0:
                 break
+
+             if dhcp:
+                 logger.info('Restarting networking to establish connectivity')
+                 updateActivity('Restarting networking to establish connectivity')
+                 runCommand('systemctl restart interfaces-config')
+                 logger.info('Restarted networking')
+                 updateActivity('Restarted networking')
+
+             logger.info('connectivity-check: Sleeping for %d seconds before retrying.' % (retry_interval))
+             updateActivity('Sleeping for %d seconds before retrying' % (retry_interval))
              time.sleep(retry_interval)
+
              if retry_count != -1:
                 retry_count = retry_count - 1
         return rc
@@ -108,6 +126,9 @@ class ConnectivityCheck:
                 logger.error('connectivity-check: Host list not provided.')
                 sys.exit(1)
 
+            # Interface name
+            interface = getField(section_data, 'interface', str, None)
+
             # Time interval in seconds to wait before retrying ping to hosts
             retry_interval = getField(section_data, 'retry-interval', int, 5)
             if retry_interval < 0:
@@ -127,10 +148,16 @@ class ConnectivityCheck:
             # Time to wait for a response, in seconds
             timeout = getField(section_data, 'timeout', int, None)
 
+            # Time to wait for a response, in seconds
+            retry_dhcp = getField(section_data, 'retry-dhcp', bool, default_value=False)
+
+            # Additional ping arguments
+            args = getField(section_data, 'args', str, None)
+
             # Ping ipv4 host list
             if section_data.get('ping-hosts') is not None:
                 logger.info('connectivity-check: Attempting to connect to IPv4 hosts %s.' % (section_data.get('ping-hosts')))
-                if self.pingHosts(section_data.get('ping-hosts'), retry_count, retry_interval, ping_count, deadline, timeout) is False:
+                if self.pingHosts(section_data.get('ping-hosts'), interface, retry_count, retry_interval, ping_count, deadline, timeout, args, dhcp=retry_dhcp) is False:
                     logger.error('connectivity-check: IPv4 hosts not reachable.')
                     sys.exit(1)
                 logger.info('connectivity-check: All IPv4 hosts %s reachable' %(section_data.get('ping-hosts')))
@@ -138,7 +165,7 @@ class ConnectivityCheck:
             # Ping ipv6 host list
             if section_data.get('ping6-hosts') is not None:
                 logger.info('connectivity-check: Attempting to connect to IPv6 hosts %s.' % (section_data.get('ping6-hosts')))
-                if self.pingHosts(section_data.get('ping6-hosts'), retry_count, retry_interval, ping_count, deadline, timeout, ipv6=True) is False:
+                if self.pingHosts(section_data.get('ping6-hosts'), interface, retry_count, retry_interval, ping_count, deadline, timeout, args, ipv6=True, dhcp=retry_dhcp) is False:
                     logger.error('connectivity-check: IPv6 hosts not reachable.')
                     sys.exit(1)
                 logger.info('connectivity-check: All IPv6 hosts %s reachable' %(section_data.get('ping6-hosts')))
