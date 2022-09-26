@@ -463,7 +463,7 @@ class ZTPEngine():
                         if not section.get('ignore-result'):
                             abort = True
 
-            except:
+            except Exception as e:
                     logger.debug('Exception [%s] encountered while verifying plugin for configuration section %s.' % (str(e), sec))
                     logger.info('Exception encountered while verifying plugin for configuration section %s. Marking it as FAILED.' %  sec)
                     section['error'] = 'Exception [%s] encountered while verifying the plugin' % (str(e))
