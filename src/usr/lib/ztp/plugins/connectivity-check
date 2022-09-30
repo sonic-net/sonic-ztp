@@ -61,8 +61,6 @@ class ConnectivityCheck:
              iter_list = list(_host_list)
              # Loop through current host list
              for host in iter_list:
-                if interface is not None and not isString(interface):
-                    interface = None
                 if isString(host):
                     pingCmd = "ping -q -c " + str(ping_count) + " "
                     if deadline is not None:
