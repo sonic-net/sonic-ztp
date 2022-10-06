@@ -91,8 +91,8 @@ class ConnectivityCheck:
                 break
 
              if dhcp:
-                 logger.info('Restarting networking to establish connectivity')
-                 updateActivity('Restarting networking to establish connectivity')
+                 logger.info('Restarting networking service to restart DHCP')
+                 updateActivity('Restarting networking service to restart DHCP')
                  runCommand('systemctl restart interfaces-config')
                  logger.info('Restarted networking')
                  updateActivity('Restarted networking')
