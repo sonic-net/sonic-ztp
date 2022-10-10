@@ -181,6 +181,22 @@ class TestClass(object):
            "message-file" : "/etc/ztp.results",
            "fail" : false,
            "status" : "DISABLED"
+        },
+        "0005-test-plugin": {
+           "plugin" : {
+             "name" : "test-plugin",
+             "umask" : "177"
+           },
+           "message" : "umask-check",
+           "message-file" : "/tmp/test_plugin_umask_600"
+        },
+        "0006-test-plugin": {
+           "plugin" : {
+             "name" : "test-plugin",
+             "umask" : "177"
+           },
+           "message" : "umask-check",
+           "message-file" : "/tmp/test_plugin_umask_644"
         }
     }
 }"""
@@ -218,6 +234,13 @@ class TestClass(object):
         assert(jsonDict.get('ztp').get('0004-test-plugin').get('status') == 'SUCCESS')
         assert(jsonDict.get('ztp').get('0004-test-plugin').get('timestamp') != None)
         assert(jsonDict.get('ztp').get('0004-test-plugin').get('exit-code') == 0)
+
+        st = os.stat("/tmp/test_plugin_umask_600")
+        assert(0o600, oct(st.st_mode))
+
+        st = os.stat("/tmp/test_plugin_umask_644")
+        assert(0o644, oct(st.st_mode))
+        runCommand("rm -f /tmp/test_plugin_umask_600 /tmp/test_plugin_umask_644")
 
         old_timestamp = jsonDict.get('ztp').get('timestamp')
         runCommand(COVERAGE + ZTP_ENGINE_CMD)

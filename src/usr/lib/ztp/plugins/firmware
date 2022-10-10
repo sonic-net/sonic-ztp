@@ -379,7 +379,7 @@ class Firmware:
         # Execute sonic-installer command
         logger.info('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
         updateActivity('firmware: Installing firmware image located at \'%s\'.' % self.__dest_file)
-        rc = runCommand(cmd, capture_stdout=False)
+        rc = runCommand(cmd, capture_stdout=False, umask=0o022)
         if rc != 0:
             self.__bailout('Error (%d) encountered while processing command : %s' % (cmd))
 

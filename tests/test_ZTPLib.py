@@ -41,6 +41,14 @@ class TestClass(object):
         assert((cmd_stdout1 == cmd_stdout2) and (cmd_stdout2 == cmd_stdout3) and (cmd_stdout3 == cmd_stdout4))
         assert((cmd_stderr1 == cmd_stderr2) and (cmd_stderr2 == cmd_stderr3) and (cmd_stderr3 == cmd_stderr4))
 
+        (rc5, cmd_stdout5, cmd_stderr5) = runCommand(['touch', '/tmp/test_file_644'], use_shell=True, umask=0o022)
+        st = os.stat('/tmp/test_file_644')
+        assert(0o644, oct(st.st_mode))
+        (rc6, cmd_stdout6, cmd_stderr6) = runCommand(['touch', '/tmp/test_file_600'], use_shell=True, umask=0o177)
+        st = os.stat('/tmp/test_file_600')
+        assert(0o600, oct(st.st_mode))
+        runCommand("rm -f /tmp/test_file_644 /tmp/test_file_600")
+
         (rc1, cmd_stdout1, cmd_stderr1) = runCommand('ps hjk')
         (rc2, cmd_stdout2, cmd_stderr2) = runCommand('ps hjk', use_shell=True)
         (rc3, cmd_stdout3, cmd_stderr3) = runCommand(['ps', 'hjk'])

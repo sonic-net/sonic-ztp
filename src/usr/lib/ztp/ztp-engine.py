@@ -498,6 +498,13 @@ class ZTPEngine():
                         # Determine if shell has to be used to execute plugin
                         _shell = getField(plugin_data, 'shell', bool, False)
 
+                        # Determine if user specified umask has to be used to execute plugin
+                        try:
+                            _umask = int(getField(plugin_data, 'umask', str, getCfg("umask")), 8)
+                        except Exception as e:
+                            logger.error('Exception[%s] encountered while reading umask to execute the plugin for %s. Using default value -1.' % (str(e), sec))
+                            _umask = -1
+
                         # Construct the full plugin command string along with arguments
                         plugin_cmd = plugin
                         if plugin_args is not None:
@@ -506,7 +513,7 @@ class ZTPEngine():
                         # A plugin has been resolved and its input configuration section data as well
                         logger.debug('Executing plugin %s.' % (plugin_cmd))
                         # Execute identified plugin
-                        rc = runCommand(plugin_cmd, capture_stdout=False, use_shell=_shell)
+                        rc = runCommand(plugin_cmd, capture_stdout=False, use_shell=_shell, umask=_umask)
 
                         logger.debug('Plugin %s exit code = %d.' % (plugin_cmd, rc))
                         # Compare plugin exit code

@@ -59,6 +59,7 @@ defaultCfg = dict( \
   "section-input-file"   : "input.json", \
   "sighandler-wait-interval" : 60, \
   "test-mode"            : False, \
+  "umask"                : "022", \
   "ztp-activity"         : '/var/run/ztp/activity', \
   "ztp-cfg-dir"          : "/host/ztp", \
   "ztp-json"             : "/host/ztp/ztp_data.json", \
