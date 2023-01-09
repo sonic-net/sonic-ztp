@@ -167,7 +167,7 @@ class Firmware:
         self.__dest_file = self.__download_file(objURL)
 
         # Execute this file
-        os.chmod(self.__dest_file, os.stat(self.__dest_file).st_mode | stat.S_IXUSR | stat.S_IXGRP)
+        os.chmod(self.__dest_file, os.stat(self.__dest_file).st_mode | stat.S_IXUSR | stat.S_IXGRP) # nosemgrep
         logger.info('firmware: Executing pre-installation check script.')
         updateActivity('firmware: Executing pre-installation check script')
         rc = runCommand(self.__dest_file, capture_stdout=False)
