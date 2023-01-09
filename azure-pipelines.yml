@@ -11,6 +11,7 @@ trigger:
 stages:
 - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
   - stage: Analysis
+    dependsOn: []
     jobs:
     - job:
       displayName: "Semgrep"
