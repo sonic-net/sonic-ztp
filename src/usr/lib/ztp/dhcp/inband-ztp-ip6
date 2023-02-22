@@ -32,7 +32,7 @@ case $reason in
                 else
                     old_prefixlen=128
                 fi
-                config interface ip remove ${interface} ${old_ip6_address}/${old_prefixlen}
+                sudo config interface ip remove ${interface} ${old_ip6_address}/${old_prefixlen}
             fi
         fi
         ;;
@@ -45,14 +45,14 @@ case $reason in
                     else
                         old_prefixlen=128
                     fi
-                    config interface ip remove ${interface} ${old_ip6_address}/${old_prefixlen}
+                    sudo config interface ip remove ${interface} ${old_ip6_address}/${old_prefixlen}
                 fi
                 if [ -n "${new_ip6_prefixlen}" ]; then
                     prefixlen=${new_ip6_prefixlen}
                 else
                     prefixlen=128
                 fi
-                config interface ip add ${interface} ${new_ip6_address}/${new_ip6_prefixlen}
+                sudo config interface ip add ${interface} ${new_ip6_address}/${new_ip6_prefixlen}
             fi
         fi
         ;;
