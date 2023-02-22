@@ -38,7 +38,7 @@ case $reason in
         if inband_interface_check ${interface} ; then
             if [ -n "$old_ip_address" ] && [ -n "$old_subnet_mask" ]; then
                 prefix=$(IPprefix_by_netmask "${old_subnet_mask}")
-                config interface ip remove ${interface} ${old_ip_address}${prefix}
+                sudo config interface ip remove ${interface} ${old_ip_address}${prefix}
             fi
         fi
         ;;
@@ -47,11 +47,11 @@ case $reason in
             if [ -n "$new_ip_address" ] && [ -n "$new_subnet_mask" ]; then
                 if [ -n "$old_ip_address" ] && [ -n "$old_subnet_mask" ]; then
                     prefix=$(IPprefix_by_netmask "${old_subnet_mask}")
-                    config interface ip remove ${interface} ${old_ip_address}${prefix}
+                    sudo config interface ip remove ${interface} ${old_ip_address}${prefix}
                 fi
                 prefix=$(IPprefix_by_netmask "${new_subnet_mask}")
                 if [ "${prefix}" != "/0" ]; then
-                    config interface ip add ${interface} ${new_ip_address}${prefix}
+                    sudo config interface ip add ${interface} ${new_ip_address}${prefix}
                 fi
             fi
         fi
