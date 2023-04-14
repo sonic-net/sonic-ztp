@@ -205,7 +205,7 @@ class ConfigDBJson:
             self.__stop_dhcp()
             logger.info('configdb-json: Reloading config_db.json to Config DB.')
             updateActivity('configdb-json: Reloading config_db.json to Config DB')
-            cmd += 'reload'
+            cmd += 'reload -f'
         else:
             logger.info('configdb-json: Applying config_db.json to Config DB.')
             updateActivity('configdb-json: Applying config_db.json to Config DB')
