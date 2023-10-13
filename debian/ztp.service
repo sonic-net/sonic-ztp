@@ -1,7 +1,7 @@
 [Unit]
 Description=SONiC Zero Touch Provisioning service
 Wants=config-setup.service
-After=config-setup.service interfaces-config.service
+After=config-setup.service interfaces-config.service rsyslog-config.service
 
 [Service]
 EnvironmentFile=-/etc/default/ztp
