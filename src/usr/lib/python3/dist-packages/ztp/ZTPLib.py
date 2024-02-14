@@ -58,7 +58,7 @@ def getTimestamp():
 ## Global variable to keep track of the pid or process created by runCommand()
 runcmd_pids = []
 
-def runCommand(cmd, capture_stdout=True, use_shell=False):
+def runCommand(cmd, capture_stdout=True, use_shell=False, umask=-1):
     '''!
     Execute a given command
 
@@ -95,7 +95,7 @@ def runCommand(cmd, capture_stdout=True, use_shell=False):
             else:
                 shcmd = cmd
         if capture_stdout is True:
-            proc = subprocess.Popen(shcmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True)
+            proc = subprocess.Popen(shcmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, umask=umask)
             pid = proc.pid
             runcmd_pids.append(pid)
             output_stdout, output_stderr = proc.communicate()
@@ -109,7 +109,7 @@ def runCommand(cmd, capture_stdout=True, use_shell=False):
                 list_stderr.append(str(l.decode()))
             return (proc.returncode, list_stdout, list_stderr)
         else:
-            proc = subprocess.Popen(shcmd, shell=use_shell)
+            proc = subprocess.Popen(shcmd, shell=use_shell, umask=umask)
             pid = proc.pid
             runcmd_pids.append(pid)
             proc.communicate()
