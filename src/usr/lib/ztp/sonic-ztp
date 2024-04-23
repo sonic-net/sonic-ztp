@@ -37,6 +37,10 @@ start()
     # Custom ztp_cfg.json file
     [ "${CONFIG_JSON}" != "" ] && CONFIG_JSON_ARGS="-C ${CONFIG_JSON}"
 
+    # Use ZTP configuration profile (default) or config_db
+    [ "${USE_DEFAULT_CONFIG}" = "no" ] && CONFIG_DB_ARGS="-o"
+
+
     if [ "${COVERAGE}" = "yes" ]; then
         if which python3-coverage > /dev/null; then
             [ "${COVERAGE_CMD}" = "" ] && COVERAGE_EXP="python3-coverage run --append"
@@ -49,7 +53,7 @@ start()
     fi
 
     # Kickstart ZTP service daemon
-    ${COVERAGE_EXP} ${ZTP_ENGINE} ${DEBUG_ARGS} ${TEST_ARGS} ${CONFIG_JSON_ARGS} &
+    ${COVERAGE_EXP} ${ZTP_ENGINE} ${DEBUG_ARGS} ${TEST_ARGS} ${CONFIG_JSON_ARGS} ${CONFIG_DB_ARGS}&
 
     ztp_engine_pid=$!
     wait "$ztp_engine_pid"

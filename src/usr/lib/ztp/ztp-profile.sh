@@ -229,6 +229,34 @@ if [ "$CMD" = "install" ] ; then
     fi
 fi
 
+if [ "$CMD" = "discoverOnly" ] ; then
+    echo "System is discoverOnly"
+    # setup rsyslog forwarding
+    touch ${SYSLOG_CONF_FILE}
+    if [ "$(get_feature console-logging)" = "true" ]; then
+        echo ":programname, contains, \"sonic-ztp\"  /dev/console" > ${SYSLOG_CONSOLE_CONF_FILE}
+    fi
+    systemctl restart rsyslog
+
+    #setup db
+    sonic-db-cli CONFIG_DB HSET "ZTP|mode" "inband" "true"
+    sonic-db-cli CONFIG_DB HSET "ZTP|mode" "out-of-band" "true"
+    sonic-db-cli CONFIG_DB HSET "ZTP|mode" "ipv4" "true"
+    sonic-db-cli CONFIG_DB HSET "ZTP|mode" "ipv6" "true"
+
+    ln -sf /usr/lib/ztp/dhcp/ztp-rsyslog /etc/dhcp/dhclient-exit-hooks.d/ztp-rsyslog
+    echo "Initiating ZTP discovery."
+
+
+    # Install DHCP policy for interfaces participating in ZTP
+    dhcp_policy_create
+    echo "Restarting network configuration."
+    updateActivity "Restarting network configuration"
+    systemctl restart interfaces-config
+    echo "Restarted network configuration."
+
+fi
+
 # Process ZTP profile remove request
 if [ "$CMD" = "remove" ] ; then
 

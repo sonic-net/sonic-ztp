@@ -202,7 +202,7 @@ class ZTPEngine():
                     profile_active = True
         return profile_active
 
-    def __link_scan(self):
+    def __link_scan(self, use_config_db):
         '''!
         Scan all in-band interface's operational status to detect a link up event
            @return  False - If a link scan did not detect at least one switch port link up event
@@ -217,15 +217,17 @@ class ZTPEngine():
             self.__link_scan_enabled = None
             return False
 
-        if self.__link_scan_enabled is None:
-            # Check if ZTP configuration is active
-            if self.__is_ztp_profile_active():
-                self.__link_scan_enabled = 'True'
-            else:
-                self.__link_scan_enabled = 'False'
+        if (not use_config_db) :
 
-        if self.__link_scan_enabled == 'False':
-            return False
+            if self.__link_scan_enabled is None:
+                # Check if ZTP configuration is active
+                if self.__is_ztp_profile_active():
+                    self.__link_scan_enabled = 'True'
+                else:
+                    self.__link_scan_enabled = 'False'
+
+            if self.__link_scan_enabled == 'False':
+                return False
 
         # Populate data of all ztp eligible interfaces
         link_scan_result = self.__detect_intf_state()
@@ -302,6 +304,15 @@ class ZTPEngine():
             self.__ztp_profile_loaded = True
             return True
         return False
+
+    def __discoverOnly(self):
+        # Do not attempt to install ZTP configuration if working in unit test mode
+        if self.test_mode:
+            return False
+
+        cmd = getCfg('ztp-lib-dir')+'/ztp-profile.sh discoverOnly'
+        rc = runCommand(cmd, capture_stdout=False)
+        return True
 
     def __createProvScriptJson(self):
         '''!
@@ -545,7 +556,7 @@ class ZTPEngine():
                 # Check reboot on result flags
                 self.__rebootAction(section)
 
-    def __processZTPJson(self):
+    def __processZTPJson(self, use_config_db):
         '''!
          Process ZTP JSON file downloaded using URL provided by DHCP Option 67, DHCPv6 Option 59 or
          local ZTP JSON file.
@@ -601,8 +612,9 @@ class ZTPEngine():
 
         logger.info('Starting ZTP using JSON file %s at %s.' % (self.json_src, self.objztpJson['timestamp']))
 
-        # Initialize connectivity if not done already
-        self.__loadZTPProfile("resume")
+        if (not use_config_db):
+            # Initialize connectivity if not done already
+            self.__loadZTPProfile("resume")
 
         # Process available configuration sections in ZTP JSON
         self.__processConfigSections()
@@ -795,11 +807,12 @@ class ZTPEngine():
         # Restart link-scan
         self.__intf_state = dict()
 
-    def executeLoop(self, test_mode=False):
+    def executeLoop(self, test_mode=False, use_config_db = False):
         '''!
          ZTP service loop which peforms provisioning data discovery and initiates processing.
         '''
-
+        if (use_config_db == True):
+            logger.info('use config db...')
         updateActivity('Initializing')
 
         # Set testing mode
@@ -838,26 +851,29 @@ class ZTPEngine():
                     logger.debug('    ' + str(l[3]))
                 self.__forceRestartDiscovery("Invalid provisioning data received")
                 continue
-                                 
+
             if result:
                 if self.ztp_mode == 'MANUAL_CONFIG':
                     logger.info("Configuration file '%s' detected. Shutting down ZTP service." % (getCfg('config-db-json')))
                     break
                 elif self.ztp_mode != 'DISCOVERY':
-                    (rv, msg) = self.__processZTPJson()
+                    (rv, msg) = self.__processZTPJson(use_config_db)
                     if rv == "retry":
                         self.ztp_mode = 'DISCOVERY'
                     elif rv == "restart":
                         self.__forceRestartDiscovery(msg)
                     else:
                         break
-
-            # Initialize in-band interfaces to establish connectivity if not done already
-            self.__loadZTPProfile("discovery")
-            logger.debug('Provisioning data not found.')
+            if (not use_config_db):
+                # Initialize in-band interfaces to establish connectivity if not done already
+                self.__loadZTPProfile("discovery")
+                logger.debug('Provisioning data not found.')
+            else:
+                logger.debug('calling __discoverOnly...')
+                self.__discoverOnly()
 
             # Scan for inband interfaces to link up and restart interface connectivity
-            if self.__link_scan():
+            if self.__link_scan(use_config_db):
                 updateActivity('Restarting network discovery after link scan')
                 logger.info('Restarting network discovery after link scan.')
                 runCommand('systemctl restart interfaces-config', capture_stdout=False)
@@ -905,6 +921,7 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug level logging")
     parser.add_argument("-t", "--test", action="store_true", default=False, help="Start service in test mode with restricted functionality")
     parser.add_argument("-C", "--config-json", metavar='FILE', default=None, help="ZTP service configuration file")
+    parser.add_argument("-o", "--use-config-db", action="store_true", default=False, help="Use current config_db, don't install ztp_config")
 
     # Parse provided arguments
     options = parser.parse_args()
@@ -919,6 +936,11 @@ def main():
         _test_mode = True
     else:
         _test_mode = False
+
+    if options.use_config_db:
+        _use_config_db = True
+    else:
+        _use_config_db = False
 
     # Parse user provided configuration file
     cfg_json = options.config_json
@@ -967,7 +989,7 @@ def main():
     objEngine = ZTPEngine()
 
     # Run ZTP service to completion
-    objEngine.executeLoop(_test_mode)
+    objEngine.executeLoop(_test_mode, _use_config_db)
 
     sys.exit(0)
 

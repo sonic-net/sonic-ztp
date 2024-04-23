@@ -18,3 +18,6 @@ COVERAGE=""
 # Change below to provide command coverage.py tool.
 # (python3-coverage run --append is used if not specified)
 COVERAGE_CMD=""
+
+# Use ZTP configuration profile (default) or config_db
+USE_DEFAULT_CONFIG="yes"
