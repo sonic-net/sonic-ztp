@@ -52,6 +52,7 @@ usage()
                    and start DHCP discovery
          remove  - If the switch is running ZTP configuration, reload startup configuration
                    or factory default configuration if startup configuration is missing.
+         discoverOnly - use the config_db.json and start DHCP discovery
 EOF
 }
 
