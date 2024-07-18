@@ -26,6 +26,9 @@
 {% if PORT[port].fec is defined and PORT[port].fec != "" %}
                 "fec": "{{ PORT[port].fec }}",
 {% endif %}
+{% if PORT[port].role is defined and PORT[port].role != "" %}
+                "role": "{{ PORT[port].role }}",
+{% endif %}
 {% if ZTP_INBAND == "true" %}
                 "admin_status": "up"
 {% else %}
