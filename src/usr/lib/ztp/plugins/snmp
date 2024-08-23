@@ -93,6 +93,8 @@ class Snmp:
         # Extract data from the section which is relevant to the snmp plugin
         no_section = True
         restart_agent = False
+        community_ro = None
+        snmp_location = None
         try:
             section_data = obj_section.jsonDict.get(section_name)
             restart_agent = getField(section_data, 'restart-agent', bool, default_value=False)
