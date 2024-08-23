@@ -471,6 +471,93 @@ class TestClass(object):
         self.cfgSet('monitor-startup-config', True)
         self.cfgSet('restart-ztp-no-config', True)
 
+    def test_ztp_json_invalid_plugins(self):
+        '''!
+          Simple ZTP test with 3-sections, invalid plugin in the second section, ZTP Failed
+        '''
+        content = """{
+    "ztp": {
+        "0001-test-plugin": {
+           "message" : "0001-test-plugin",
+           "message-file" : "/etc/ztp.results"
+        },
+        "0002-invalid-plugin": {
+            "pre-ztp-plugin-download" : false
+        },
+        "0003-test-plugin": {
+            "pre-ztp-plugin-download" : false,
+            "message" : "0003-test-plugin",
+            "message-file" : "/etc/ztp.results"
+        }
+    }
+}"""
+        expected_result = """0001-test-plugin
+0003-test-plugin
+"""
+        self.__init_ztp_data()
+        self.cfgSet('monitor-startup-config', False)
+        self.cfgSet('restart-ztp-no-config', False)
+        self.__write_file("/tmp/ztp_input.json", content)
+        self.__write_file(self.cfgGet("opt67-url"), "file:///tmp/ztp_input.json")
+        runCommand(COVERAGE + ZTP_ENGINE_CMD)
+        runCommand(COVERAGE + ZTP_CMD + ' status -v')
+        os.remove("/tmp/ztp_input.json")
+        objJson, jsonDict = JsonReader(self.cfgGet('ztp-json'), indent=4)
+        assert(jsonDict.get('ztp').get('status') == 'FAILED')
+        assert(jsonDict.get('ztp').get('0001-test-plugin').get('status') == 'SUCCESS')
+        assert(jsonDict.get('ztp').get('0002-invalid-plugin').get('status') == 'FAILED')
+        assert(jsonDict.get('ztp').get('0002-invalid-plugin').get('error') == 'Unable to find or download requested plugin')
+        result = self.__read_file("/etc/ztp.results")
+        assert(result == expected_result)
+        self.cfgSet('monitor-startup-config', True)
+        self.cfgSet('restart-ztp-no-config', True)
+
+    def test_ztp_json_invalid_plugins_ignore_result(self):
+        '''!
+          Simple ZTP test with 3-sections, invalid plugin in the second section but result ignored,
+          ZTP Success
+        '''
+        content = """{
+    "ztp": {
+        "0001-test-plugin": {
+           "message" : "0001-test-plugin",
+           "message-file" : "/etc/ztp.results"
+        },
+        "0002-invalid-plugin": {
+           "plugin" : {
+               "url" : "file:///no-such-plugin"
+           },
+           "pre-ztp-plugin-download" : false,
+           "ignore-result" : true
+        },
+        "0003-test-plugin": {
+            "pre-ztp-plugin-download" : false,
+            "message" : "0003-test-plugin",
+            "message-file" : "/etc/ztp.results"
+        }
+    }
+}"""
+        expected_result = """0001-test-plugin
+0003-test-plugin
+"""
+        self.__init_ztp_data()
+        self.cfgSet('monitor-startup-config', False)
+        self.cfgSet('restart-ztp-no-config', False)
+        self.__write_file("/tmp/ztp_input.json", content)
+        self.__write_file(self.cfgGet("opt67-url"), "file:///tmp/ztp_input.json")
+        runCommand(COVERAGE + ZTP_ENGINE_CMD)
+        runCommand(COVERAGE + ZTP_CMD + ' status -v')
+        os.remove("/tmp/ztp_input.json")
+        objJson, jsonDict = JsonReader(self.cfgGet('ztp-json'), indent=4)
+        assert(jsonDict.get('ztp').get('status') == 'SUCCESS')
+        assert(jsonDict.get('ztp').get('0001-test-plugin').get('status') == 'SUCCESS')
+        assert(jsonDict.get('ztp').get('0002-invalid-plugin').get('status') == 'FAILED')
+        assert(jsonDict.get('ztp').get('0002-invalid-plugin').get('error') == 'Unable to find or download requested plugin')
+        result = self.__read_file("/etc/ztp.results")
+        assert(result == expected_result)
+        self.cfgSet('monitor-startup-config', True)
+        self.cfgSet('restart-ztp-no-config', True)
+
     def test_ztp_json_ignore_ztp_success(self):
         '''!
           Simple ZTP test with 3-sections, Failure in 3 sections but ignore-result set in 2sections, ignore-result set in ztp, ZTP Success

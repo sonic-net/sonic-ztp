@@ -191,6 +191,7 @@ class TestClass(object):
                     "source": "/tmp/test_firmware_%s.json"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -199,6 +200,7 @@ class TestClass(object):
         "config-fallback": false,
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "restart-ztp-no-config": true,
@@ -305,6 +307,7 @@ class TestClass(object):
                     "source": "http://localhost:2000/ztp/scripts/post_install.sh"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -313,6 +316,7 @@ class TestClass(object):
         "config-fallback": false,
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "restart-ztp-no-config": true,
@@ -459,6 +463,7 @@ class TestClass(object):
                     "source": "file:///tmp/test_firmware.sh"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -467,6 +472,7 @@ class TestClass(object):
         "config-fallback": false,
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "restart-ztp-no-config": true,
@@ -526,6 +532,7 @@ class TestClass(object):
                     "destination": "/tmp/firmware_check.sh"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -533,6 +540,7 @@ class TestClass(object):
         },
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "status": "BOOT",
@@ -682,6 +690,7 @@ class TestClass(object):
                     "source": "http://localhost:2000/ztp/scripts/post_install.sh"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -689,6 +698,7 @@ class TestClass(object):
         },
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "status": None,
@@ -765,6 +775,7 @@ class TestClass(object):
                     "source": "http://localhost:2000/ztp/scripts/post_install.sh"
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -772,6 +783,7 @@ class TestClass(object):
         },
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "status": None,
@@ -813,6 +825,7 @@ class TestClass(object):
                       }
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -820,6 +833,7 @@ class TestClass(object):
         },
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "status": "BOOT",
@@ -874,6 +888,7 @@ class TestClass(object):
                       }
                 }
             },
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -881,6 +896,7 @@ class TestClass(object):
         },
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "status": "BOOT",
@@ -927,6 +943,7 @@ class TestClass(object):
             "halt-on-failure": false,
             "ignore-result": false,
             "plugin": "graphservice",
+            "pre-ztp-plugin-download": true,
             "reboot-on-failure": false,
             "reboot-on-success": false,
             "status": "BOOT",
@@ -935,6 +952,7 @@ class TestClass(object):
         "config-fallback": false,
         "halt-on-failure": false,
         "ignore-result": false,
+        "pre-ztp-plugin-download": true,
         "reboot-on-failure": false,
         "reboot-on-success": false,
         "restart-ztp-no-config": true,
