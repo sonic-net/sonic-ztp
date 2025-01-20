@@ -58,6 +58,22 @@ def getTimestamp():
 ## Global variable to keep track of the pid or process created by runCommand()
 runcmd_pids = []
 
+
+def runcommand_noshell(cmd, umask=-1):
+    cmd_list= [command.strip().split() for command in cmd.split('|')]
+    popens = [subprocess.Popen(cmd_list[0], stdout=subprocess.PIPE, stderr=subprocess.PIPE, umask=umask)]
+    pid = popens[0].pid
+    i = 1              
+    # Loop through additional commands provided.
+    while i < len(cmd_list):
+        # Create a Popen object for each command, using the previous command's stdout as input
+        popens.append(subprocess.Popen(cmd_list[i], stdin=popens[i-1].stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE, umask=umask))
+        i += 1
+    output,err = popens[-1].communicate()
+    rc = popens[-1].returncode
+    return pid, rc, output, err
+
+
 def runCommand(cmd, capture_stdout=True, use_shell=False, umask=-1):
     '''!
     Execute a given command
@@ -95,10 +111,15 @@ def runCommand(cmd, capture_stdout=True, use_shell=False, umask=-1):
             else:
                 shcmd = cmd
         if capture_stdout is True:
-            proc = subprocess.Popen(shcmd, shell=use_shell, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, umask=umask)
-            pid = proc.pid
+            if use_shell is False:
+                proc = subprocess.Popen(shcmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, umask=umask)
+                pid = proc.pid
+                output_stdout, output_stderr = proc.communicate()
+                rc = proc.returncode
+            else:
+                pid, rc, output_stdout, output_stderr= runcommand_noshell(shcmd)
+				
             runcmd_pids.append(pid)
-            output_stdout, output_stderr = proc.communicate()
             if pid in runcmd_pids:
                 runcmd_pids.remove(pid)
             list_stdout = []
@@ -107,15 +128,20 @@ def runCommand(cmd, capture_stdout=True, use_shell=False, umask=-1):
             list_stderr = []
             for l in output_stderr.splitlines():
                 list_stderr.append(str(l.decode()))
-            return (proc.returncode, list_stdout, list_stderr)
+            return (rc, list_stdout, list_stderr)
         else:
-            proc = subprocess.Popen(shcmd, shell=use_shell, umask=umask)
-            pid = proc.pid
+            if use_shell is False:
+                proc = subprocess.Popen(shcmd, shell=use_shell, umask=umask)
+                pid = proc.pid
+                proc.communicate()
+                rc = proc.returncode
+            else:
+                pid, rc, _, _ = runcommand_noshell(shcmd)
+
             runcmd_pids.append(pid)
-            proc.communicate()
             if pid in runcmd_pids:
                 runcmd_pids.remove(pid)
-            return proc.returncode
+            return rc
     except (OSError, ValueError) as e:
         print("!Exception [%s] encountered while processing the command : %s" % (str(e), str(cmd)))
         if pid is not None and pid in runcmd_pids:
