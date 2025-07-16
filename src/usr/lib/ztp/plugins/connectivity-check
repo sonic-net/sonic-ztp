@@ -34,7 +34,7 @@ class ConnectivityCheck:
         '''!
         Constructor. We only store the json data input file, all the logic is
         managed by the main() method
-        
+
         @param input_file (str) json data input file to be used by the plugin
         '''
         self.__input_file = input_file
@@ -62,7 +62,13 @@ class ConnectivityCheck:
              # Loop through current host list
              for host in iter_list:
                 if isString(host):
-                    pingCmd = "ping -q -c " + str(ping_count) + " "
+                    if '@' in host:
+                        ip, vrf = host.split('@')
+                        pingCmd = "ip vrf exec " + str(vrf) + " "
+                    else:
+                        ip = host
+                        pingCmd = ""
+                    pingCmd += "ping -q -c " + str(ping_count) + " "
                     if deadline is not None:
                         pingCmd += "-w " + str(deadline) + " "
                     if timeout is not None:
@@ -72,7 +78,7 @@ class ConnectivityCheck:
                     logger.info('connectivity-check: Pinging host \'%s\'.' % (host))
                     updateActivity('connectivity-check: Pinging host \'%s\'.' % (host))
                     # Ping the host
-                    rv = runCommand(pingCmd + host, False)
+                    rv = runCommand(pingCmd + ip, False)
                     if rv == 0:
                          # Host is alive, remove it from the list
                          _host_list.remove(host)
