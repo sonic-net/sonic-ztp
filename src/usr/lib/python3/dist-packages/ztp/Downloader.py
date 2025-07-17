@@ -247,6 +247,10 @@ class Downloader:
             else:
                 break
 
-        os.chmod(dst_file, stat.S_IRWXU)
+        try:
+            os.chmod(dst_file, stat.S_IRWXU)
+        except FileNotFoundError:
+            return (20, None)
+
         # Use curl result
         return (0, dst_file)
