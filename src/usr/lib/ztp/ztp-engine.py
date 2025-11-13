@@ -77,6 +77,27 @@ def signal_handler(signum, frame):
 
     sys.exit(0)
 
+def get_ntp_service_name():
+    '''!
+    Detect which NTP service is available on the system.
+    Checks in priority order: chrony, ntp
+
+    Returns:
+        str: Name of the available NTP service, or None if none found
+    '''
+    ntp_services = ['chrony', 'ntp']
+    for service in ntp_services:
+        try:
+            rc = runCommand('systemctl is-enabled ' + service, capture_stdout=True)
+            if rc == 0:
+                logger.info('Detected NTP service: %s' % service)
+                return service
+        except:
+            continue
+
+    logger.warning('No NTP service detected (ntp/ntpsec/chrony)')
+    return None
+
 class ZTPEngine():
     '''!
     \brief This class performs core functions of ZTP service.
@@ -795,6 +816,25 @@ class ZTPEngine():
         # Restart link-scan
         self.__intf_state = dict()
 
+    def __restart_network_services(self):
+        '''!
+        Restart the necessary services: stop and start NTP, and restart interfaces-config.
+        Detects which NTP service is available (ntp, ntpsec, or chrony).
+        '''
+        ntp_service = get_ntp_service_name()
+
+        if ntp_service:
+            logger.info('Stopping %s service...' % ntp_service)
+            runCommand('systemctl stop ' + ntp_service, capture_stdout=False)
+
+        logger.info('Restarting interfaces-config service...')
+        runCommand('systemctl restart interfaces-config', capture_stdout=False)
+
+        if ntp_service:
+            logger.info('Starting %s service...' % ntp_service)
+            runCommand('systemctl start ' + ntp_service, capture_stdout=False)
+            logger.info('%s service restarted successfully.' % ntp_service)
+
     def executeLoop(self, test_mode=False):
         '''!
          ZTP service loop which peforms provisioning data discovery and initiates processing.
@@ -860,7 +900,7 @@ class ZTPEngine():
             if self.__link_scan():
                 updateActivity('Restarting network discovery after link scan')
                 logger.info('Restarting network discovery after link scan.')
-                runCommand('systemctl restart interfaces-config', capture_stdout=False)
+                self.__restart_network_services()
                 logger.info('Restarted network discovery after link scan.')
                 _start_time = time.time()
                 continue
@@ -876,7 +916,7 @@ class ZTPEngine():
                     # Remove existing leases to source new provisioning data
                     self.__cleanup_dhcp_leases()
                     logger.info('Restarting network discovery.')
-                    runCommand('systemctl restart interfaces-config', capture_stdout=False)
+                    self.__restart_network_services()
                     logger.info('Restarted network discovery.')
                 _start_time = time.time()
                 continue
