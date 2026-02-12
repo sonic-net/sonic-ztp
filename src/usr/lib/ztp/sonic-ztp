@@ -28,16 +28,6 @@ sighandle()
 
 start()
 {
-    # During warm boot the existing configuration must be preserved.
-    # ZTP must not run as it would generate a new config and trigger
-    # config reload, wiping management IP and other settings.
-    case "$(cat /proc/cmdline)" in
-    *SONIC_BOOT_TYPE=warm*)
-        echo "Warm boot detected, skipping ZTP."
-        exit 0
-        ;;
-    esac
-
     # Enable debug level logging
     [ "${DEBUG}" = "yes" ] && DEBUG_ARGS="-d"
 
