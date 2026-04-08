@@ -35,7 +35,7 @@ def processData(dict, app_name, dest_file):
  
   if app_data.get('dynamic-url') is not None:
      objURL  = DynamicURL(app_data.get('dynamic-url'), dest_file)
-     url_str = objDynURL.getSource()
+     url_str = objURL.getSource()
   elif app_data.get('url') is not None:
      objURL = URL(app_data.get('url'), dest_file)
      url_str = objURL.getSource()
