@@ -41,6 +41,18 @@ PLATFORM=`sonic-cfggen -H -v DEVICE_METADATA.localhost.platform`
 PRESET=(`head -n 1 /usr/share/sonic/device/$PLATFORM/default_sku`)
 HW_KEY=${PRESET[0]}
 
+# Function to detect which NTP service is available
+# Different SONiC releases use: ntp, ntpsec, or chrony
+get_ntp_service() {
+    for service in chrony ntp; do
+        if systemctl is-enabled $service >/dev/null 2>&1; then
+            echo "$service"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Command usage and help
 usage()
 {
@@ -221,9 +233,20 @@ if [ "$CMD" = "install" ] ; then
         # Restart interface configuration again to pickup newly created interfaces
         # to start DHCP discovery
         if [ "$(ztp status -c)" = "4:IN-PROGRESS" ]; then
-            echo "Restarting network configuration."
-            updateActivity "Restarting network configuration"
+            NTP_SERVICE=$(get_ntp_service)
+            if [ -n "$NTP_SERVICE" ]; then
+                echo "Stopping $NTP_SERVICE."
+                updateActivity "Stopping $NTP_SERVICE"
+                systemctl stop $NTP_SERVICE
+            fi
+            echo "Restarting interfaces-config."
+            updateActivity "Restarting interfaces-config"
+
             systemctl restart interfaces-config
+            if [ -n "$NTP_SERVICE" ]; then
+                systemctl start $NTP_SERVICE
+                echo "Restarted $NTP_SERVICE."
+            fi
             echo "Restarted network configuration."
         fi
     fi
@@ -259,9 +282,18 @@ if [ "$CMD" = "remove" ] ; then
             sonic-db-cli CONFIG_DB DEL "ZTP|mode" > /dev/null
         fi
 
-        updateActivity "Restarting network configuration"
-        # Restart interface configuration to stop DHCP
+        NTP_SERVICE=$(get_ntp_service)
+        if [ -n "$NTP_SERVICE" ]; then
+            updateActivity "Restarting network configuration and $NTP_SERVICE"
+            # Restart interface configuration to stop DHCP
+            systemctl stop $NTP_SERVICE
+        else
+            updateActivity "Restarting network configuration"
+        fi
         systemctl restart interfaces-config
+        if [ -n "$NTP_SERVICE" ]; then
+            systemctl start $NTP_SERVICE
+        fi
     fi
 
     # Remove ZTP DHCP policy
