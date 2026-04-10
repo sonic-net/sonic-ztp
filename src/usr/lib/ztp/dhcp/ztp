@@ -103,29 +103,29 @@ fi
 
 if [ "$(ztp status -c)" != "0:DISABLED" ]; then
     if [ -n "$new_bootfile_name" ]; then
-        take_lock dhcp && echo $new_bootfile_name > $ZTP_JSON_URL_FILE
+        take_lock dhcp && echo "$new_bootfile_name" > $ZTP_JSON_URL_FILE
         if [ -n "$new_tftp_server_name" ]; then
-            take_lock dhcp && echo $new_tftp_server_name > $ZTP_TFTP_SERVER_FILE
+            take_lock dhcp && echo "$new_tftp_server_name" > $ZTP_TFTP_SERVER_FILE
         fi
     fi
 
     if [ -n "$new_dhcp6_boot_file_url" ]; then
-        take_lock dhcp6 && echo $new_dhcp6_boot_file_url > $ZTP_JSON_URL6_FILE
+        take_lock dhcp6 && echo "$new_dhcp6_boot_file_url" > $ZTP_JSON_URL6_FILE
     fi
 
     if [ -n "$new_provisioning_script_url" ]; then
-        take_lock dhcp && echo $new_provisioning_script_url > $PROVISIONING_SCRIPT_URL_FILE
+        take_lock dhcp && echo "$new_provisioning_script_url" > $PROVISIONING_SCRIPT_URL_FILE
     fi
 
     if [ -n "$new_dhcp6_provisioning_script_url" ]; then
-        take_lock dhcp6 && echo $new_dhcp6_provisioning_script_url > $PROVISIONING_SCRIPT_URL6_FILE
+        take_lock dhcp6 && echo "$new_dhcp6_provisioning_script_url" > $PROVISIONING_SCRIPT_URL6_FILE
     fi
 
     if [ -n "$new_minigraph_url" ]; then
-        take_lock dhcp && echo $new_minigraph_url > ${GRAPH_URL}
+        take_lock dhcp && echo "$new_minigraph_url" > ${GRAPH_URL}
 
         if [ -n "$new_acl_url" ]; then
-            take_lock dhcp && echo $new_acl_url > ${ACL_URL}
+            take_lock dhcp && echo "$new_acl_url" > ${ACL_URL}
         fi
     fi
 fi
