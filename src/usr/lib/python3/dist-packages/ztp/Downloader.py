@@ -219,7 +219,11 @@ class Downloader:
                 cmd += ['-H', h]                        # --header
 
         if curl_args is not None:
-            cmd += shlex.split(curl_args)
+            try:
+                cmd += shlex.split(curl_args)
+            except ValueError as e:
+                logger.error('Invalid curl_args value: %s' % str(e))
+                return (1, None)
         cmd += ['--', url]
         if verbose is True:
             logger.debug('%s' % (cmd))

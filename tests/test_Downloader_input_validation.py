@@ -96,7 +96,7 @@ class TestUrlHandling:
 
     def test_url_with_config_flag(self, tmp_path):
         """'--config' in URL must not reach curl as a real flag."""
-        url = 'http://x.com/ --config /tmp/evil.conf'
+        url = 'http://example.com/ --config /tmp/evil.conf'
         cmd = _capture_cmd(tmp_path, url)
         assert '--config' not in cmd[:cmd.index('--')]
         assert url in cmd
