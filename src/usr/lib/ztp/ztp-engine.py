@@ -748,6 +748,25 @@ class ZTPEngine():
         if os.path.isfile(getCfg('ztp-json')):
             return self.__updateZTPMode('ztp-session', getCfg('ztp-json'))
 
+        # During warm boot the existing configuration must be preserved.
+        # ZTP must not interfere as it could generate a new config and
+        # trigger config reload, wiping management IP and other settings.
+        try:
+            with open('/proc/cmdline', 'r') as f:
+                if 'SONIC_BOOT_TYPE=warm' in f.read():
+                    logger.info('Warm boot detected, skipping ZTP discovery.')
+                    self.ztp_mode = 'MANUAL_CONFIG'
+                    return True
+        except Exception:
+            pass
+
+        # If minigraph.xml is present, the device has a valid configuration
+        # source. ZTP should not override it.
+        if os.path.isfile('/etc/sonic/minigraph.xml'):
+            logger.info('minigraph.xml found, skipping ZTP discovery.')
+            self.ztp_mode = 'MANUAL_CONFIG'
+            return True
+
         if os.path.isfile(getCfg('config-db-json')) and getCfg('monitor-startup-config'):
             self.ztp_mode = 'MANUAL_CONFIG'
             return True
@@ -841,7 +860,12 @@ class ZTPEngine():
                                  
             if result:
                 if self.ztp_mode == 'MANUAL_CONFIG':
-                    logger.info("Configuration file '%s' detected. Shutting down ZTP service." % (getCfg('config-db-json')))
+                    if os.path.isfile('/etc/sonic/minigraph.xml'):
+                        logger.info("Configuration file '/etc/sonic/minigraph.xml' detected. Shutting down ZTP service.")
+                    elif os.path.isfile(getCfg('config-db-json')):
+                        logger.info("Configuration file '%s' detected. Shutting down ZTP service." % (getCfg('config-db-json')))
+                    else:
+                        logger.info("Manual configuration detected. Shutting down ZTP service.")
                     break
                 elif self.ztp_mode != 'DISCOVERY':
                     (rv, msg) = self.__processZTPJson()
