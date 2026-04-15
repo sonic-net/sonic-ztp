@@ -16,20 +16,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-import sys
-import os
 import fcntl
-import select
-import time
-import stat
-import traceback
 import json
+import os
+import select
+import shutil
+import stat
+import sys
+import time
+import traceback
 from swsscommon.swsscommon import ConfigDBConnector
 
+from ztp.Logger import logger
+from ztp.ZTPLib import runCommand, getField, isString, updateActivity
 from ztp.ZTPObjects import URL, DynamicURL
 from ztp.ZTPSections import ConfigSection
-from ztp.ZTPLib import runCommand, getField, isString, updateActivity
-from ztp.Logger import logger
 
 class ConfigDBJson:
 
@@ -226,7 +227,7 @@ class ConfigDBJson:
 
             # Move staged config file to requested destination file
             if final_dest_file is not None:
-                os.rename(dest_file, final_dest_file)
+                shutil.move(dest_file, final_dest_file)
             else:
                 os.remove(dest_file)
 
