@@ -696,6 +696,10 @@ class ZTPEngine():
             url_str = f.readline().strip()
             f.close()
 
+            if ' ' in url_str or '\t' in url_str:
+                logger.error('Failed to download provided URL %s, URL contains whitespace.' % (url_str))
+                return False
+
             res = urlparse(url_str)
             if res is None or res.scheme == '':
                 # Use passed url_prefix to construct final URL
