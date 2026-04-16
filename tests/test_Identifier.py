@@ -95,6 +95,15 @@ class TestClass(object):
         v = id.getIdentifier()
         assert(v == sysEeprom.get_product_name())
 
+    def test_mac(self):
+        '''!
+        Test when we call the constructor function using the MAC
+        '''
+
+        id = Identifier('mac')
+        v = id.getIdentifier()
+        assert(v == sysEeprom.get_mac_addr())
+
     def test_other(self):
         '''!
         Test when we call the constructor function using the product name
