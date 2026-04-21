@@ -432,13 +432,54 @@ class ZTPEngine():
         # Check reboot on result flags and take action
         self.__rebootAction(self.objztpJson.ztpDict, delayed_reboot=True)
 
+    def __downloadPlugins(self):
+        '''!
+         Check and download plugins used by configuration sections
+           @return  False - If failed to download one more plugins of a required configuration section
+                    True  - Successfully downloaded plugins of all configuration sections
+        '''
+
+        # Obtain a copy of the list of configuration sections
+        section_names = list(self.objztpJson.section_names)
+        abort = False
+        logger.debug('Verifying and downloading plugins user by configuration sections: %s' % ', '.join(section_names))
+        for sec in sorted(section_names):
+            section = self.objztpJson.ztpDict.get(sec)
+            t = getTimestamp()
+            try:
+                # Retrieve individual section's progress
+                sec_status = section.get('status')
+                download_check = section.get('pre-ztp-plugin-download')
+                if sec_status == 'BOOT' and download_check:
+                    logger.info('Verifying and downloading plugin used by the configuration section %s.' % (sec))
+                    updateActivity('Verifying and downloading plugin used by the configuration section %s' % sec)
+                    # Get the appropriate plugin to be used for this configuration section
+                    plugin = self.objztpJson.plugin(sec)
+                    if plugin is None:
+                        # Mark section status as failed
+                        section['error'] = 'Unable to find or download requested plugin'
+                        section['start-timestamp'] = t
+                        self.objztpJson.updateStatus(section, 'FAILED')
+                        if not section.get('ignore-result'):
+                            abort = True
+
+            except Exception as e:
+                    logger.error('Exception [%s] encountered while downloading plugin for configuration section %s. Marking it as FAILED.' % (str(e), sec))
+                    section['error'] = 'Exception [%s] encountered while verifying the plugin' % (str(e))
+                    section['start-timestamp'] = t
+                    self.objztpJson.updateStatus(section, 'FAILED')
+                    if not section.get('ignore-result'):
+                        abort = True
+        return abort
+
     def __processConfigSections(self):
         '''!
          Process and execute individual configuration sections defined in ZTP JSON. Plugin for each
          configuration section is resolved and executed. Configuration section data is provided as
          command line argument to the plugin. Each and every section is processed before this function
          returns.
-
+           @return  False - If error encountered processing configuration sections and request restarting ZTP
+                    True  - If processing of configuration sections has been completed
         '''
 
         # Obtain a copy of the list of configuration sections
@@ -447,6 +488,9 @@ class ZTPEngine():
         # set temporary flags
         abort = False
         sort = True
+        if self.__downloadPlugins():
+            logger.info('Halting ZTP as download of one or more plugins FAILED.')
+            return False
 
         logger.debug('Processing configuration sections: %s' % ', '.join(section_names))
         # Loop through each sections till all of them are processed
@@ -544,6 +588,7 @@ class ZTPEngine():
 
                 # Check reboot on result flags
                 self.__rebootAction(section)
+        return True
 
     def __processZTPJson(self):
         '''!
@@ -605,32 +650,40 @@ class ZTPEngine():
         self.__loadZTPProfile("resume")
 
         # Process available configuration sections in ZTP JSON
-        self.__processConfigSections()
+        _processing_completed = self.__processConfigSections()
 
-        # Determine ZTP result
-        self.__evalZTPResult()
+        # In test mode always mark processing as completed
+        if self.test_mode:
+            _processing_completed = True
 
-        # Check restart ZTP condition
-        # ZTP result is failed and restart-ztp-on-failure is set  or
-        _restart_ztp_on_failure = (self.objztpJson['status'] == 'FAILED' and \
-                        self.objztpJson['restart-ztp-on-failure'] == True)
+        _restart_ztp_missing_config = False
+        _restart_ztp_on_failure = False
+        if _processing_completed:
+            # Determine ZTP result
+            self.__evalZTPResult()
 
-        # ZTP completed and no startup-config is found, restart-ztp-no-config and config-fallback is not set
-        _restart_ztp_missing_config = ( (self.objztpJson['status'] == 'SUCCESS' or self.objztpJson['status'] == 'FAILED') and \
-                           self.objztpJson['restart-ztp-no-config'] == True and \
-                           self.objztpJson['config-fallback'] == False and
-                           os.path.isfile(getCfg('config-db-json')) is False )
+            # Check restart ZTP condition
+            # ZTP result is failed and restart-ztp-on-failure is set  or
+            _restart_ztp_on_failure = (self.objztpJson['status'] == 'FAILED' and \
+                            self.objztpJson['restart-ztp-on-failure'] == True)
 
+            # ZTP completed and no startup-config is found, restart-ztp-no-config and config-fallback is not set
+            _restart_ztp_missing_config = ( (self.objztpJson['status'] == 'SUCCESS' or self.objztpJson['status'] == 'FAILED') and \
+                               self.objztpJson['restart-ztp-no-config'] == True and \
+                               self.objztpJson['config-fallback'] == False and
+                               os.path.isfile(getCfg('config-db-json')) is False )
         # Mark ZTP for restart
-        if _restart_ztp_missing_config or _restart_ztp_on_failure:
+        if not _processing_completed or _restart_ztp_missing_config or _restart_ztp_on_failure:
             os.remove(getCfg('ztp-json'))
             if os.path.isfile(getCfg('ztp-json-shadow')):
-               os.remove(getCfg('ztp-json-shadow'))
+                os.remove(getCfg('ztp-json-shadow'))
             self.objztpJson = None
             # Remove startup-config file to obtain a new one through ZTP
             if getCfg('monitor-startup-config') is True and os.path.isfile(getCfg('config-db-json')):
                 os.remove(getCfg('config-db-json'))
-            if _restart_ztp_missing_config:
+            if not _processing_completed:
+                return ("restart", "Restarting ZTP due to error processing configuration sections")
+            elif _restart_ztp_missing_config:
                 return ("restart", "ZTP completed but startup configuration '%s' not found" % (getCfg('config-db-json')))
             elif _restart_ztp_on_failure:
                 return ("restart", "ZTP completed with FAILED status")

@@ -91,7 +91,7 @@ class ConfigSection:
          @param section (dict) Configuration Section input data read from JSON file.
 
         '''
-        default_objs = ['ignore-result', 'reboot-on-success', 'reboot-on-failure', 'halt-on-failure']
+        default_objs = ['ignore-result', 'reboot-on-success', 'reboot-on-failure', 'halt-on-failure', 'pre-ztp-plugin-download']
         # Loop through objects and update them with default values
         for key in default_objs:
             _val = getField(section, key, bool, getCfg(key))
