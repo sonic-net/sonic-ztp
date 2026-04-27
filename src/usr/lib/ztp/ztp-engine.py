@@ -35,6 +35,53 @@ from ztp.Logger import logger
 from ztp.ZTPLib import getTimestamp, runCommand, runcmd_pids 
 from ztp.ZTPLib import getField, getCfg, validateZtpCfg, updateActivity, systemReboot
 from swsscommon.swsscommon import ConfigDBConnector, SonicV2Connector
+import sonic_platform.platform
+
+
+def _get_kernel_operstate(intf):
+    """!
+    Read the kernel-reported operstate for a network interface.
+
+    @return 'up', 'down', or other kernel operstate string.
+    """
+    with open("/sys/class/net/{}/operstate".format(intf), "r") as fh:
+        return fh.readline().strip().lower()
+
+
+def _has_platform_mgmt_link_check():
+    """!
+    Check whether this platform overrides the kernel-reported management port
+    link status via the platform API (get_management_port_link_status_override).
+    """
+    try:
+        chassis = sonic_platform.platform.Platform().get_chassis()
+    except Exception:
+        return False
+    return hasattr(chassis, "get_management_port_link_status_override")
+
+
+def _platform_mgmt_link_check(intf):
+    """!
+    Query the platform for the real management port link status via the
+    platform API. If the platform provides an override (returns True/False),
+    use it instead of the kernel operstate. If not implemented (returns None)
+    or on error, return None to fall back to the kernel operstate.
+
+    @return 'up' if the platform reports link up;
+            'down' if the platform reports link down;
+            None if the platform does not override or on error.
+    """
+    try:
+        chassis = sonic_platform.platform.Platform().get_chassis()
+        is_up = chassis.get_management_port_link_status_override(intf)
+    except Exception as e:
+        logger.warning("get_management_port_link_status_override failed: %s" % str(e))
+        return None
+    if is_up is None:
+        return None
+    logger.debug("Platform mgmt link check: %s" % ("up" if is_up else "down"))
+    return "up" if is_up else "down"
+
 
 def check_pid(pid):
     ## Check For the existence of a unix pid
@@ -157,9 +204,9 @@ class ZTPEngine():
         for intf in natsorted(intf_list):
             try:
                 if intf[0:3] == 'eth':
-                    fh = open('/sys/class/net/{}/operstate'.format(intf), 'r')
-                    operstate = fh.readline().strip().lower()
-                    fh.close()
+                    override = _platform_mgmt_link_check(intf) if _has_platform_mgmt_link_check() else None
+                    operstate = override if override is not None else _get_kernel_operstate(intf)
+
                 else:
                     if self.applDB.exists(self.applDB.APPL_DB, 'PORT_TABLE:'+intf):
                         port_entry = self.applDB.get_all(self.applDB.APPL_DB, 'PORT_TABLE:'+intf)
