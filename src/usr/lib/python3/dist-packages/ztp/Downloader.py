@@ -17,6 +17,7 @@ limitations under the License.
 
 import sys
 import os
+import shlex
 import stat
 import time
 
@@ -204,22 +205,26 @@ class Downloader:
             return (20, None)
 
         # Create curl command
-        cmd = '/usr/bin/curl -f -v -s -o ' + dst_file
+        cmd = ['/usr/bin/curl', '-f', '-v', '-s', '-o', dst_file]
         if self.__user_agent is not None:
-            cmd += ' -A "' + self.__user_agent + '"'    # --user-agent
+            cmd += ['-A', self.__user_agent]            # --user-agent
         if is_secure is False:
-            cmd += ' -k'                                # --insecure
+            cmd += ['-k']                               # --insecure
         if timeout is not None and isinstance(timeout, int) is True:
-            cmd += ' --connect-timeout ' + str(timeout)
+            cmd += ['--connect-timeout', str(timeout)]
         if retry is not None and isinstance(retry, int) is True:
-            cmd += ' --retry ' + str(retry)
+            cmd += ['--retry', str(retry)]
         if incl_http_headers is not None:
             for h in self.__http_headers:
-                cmd += ' -H \"' + h + '"'               # --header
+                cmd += ['-H', h]                        # --header
 
         if curl_args is not None:
-            cmd += ' ' + curl_args
-        cmd += ' ' + url
+            try:
+                cmd += shlex.split(curl_args)
+            except ValueError as e:
+                logger.error('Invalid curl_args value: %s' % str(e))
+                return (1, None)
+        cmd += ['--', url]
         if verbose is True:
             logger.debug('%s' % (cmd))
 
