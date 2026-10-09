@@ -122,7 +122,7 @@ class ZTPEngine():
         # Connect to ConfigDB
         try:
             if self.configDB is None:
-                self.configDB = ConfigDBConnector()
+                self.configDB = ConfigDBConnector(use_unix_socket_path=True)
                 self.configDB.connect()
         except:
             self.configDB = None
@@ -131,7 +131,7 @@ class ZTPEngine():
         # Connect to AppDB
         try:
             if self.applDB is None:
-                self.applDB = SonicV2Connector()
+                self.applDB = SonicV2Connector(use_unix_socket_path=True)
                 self.applDB.connect(self.applDB.APPL_DB)
         except:
             self.applDB = None

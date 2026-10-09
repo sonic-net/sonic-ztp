@@ -52,7 +52,7 @@ class ConfigDBJson:
         self.__input_file = input_file
 
         try:
-            self.configDB = ConfigDBConnector()
+            self.configDB = ConfigDBConnector(use_unix_socket_path=True)
             self.configDB.connect()
         except:
             self.__bailout("failed to connect to Config DB")
