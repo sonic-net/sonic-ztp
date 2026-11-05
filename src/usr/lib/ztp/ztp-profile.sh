@@ -66,10 +66,10 @@ updateActivity()
 # Get ztp profile information for Config DB
 get_ztp_profile()
 {
-    ZTP_PROF_LOADED=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "profile")
-    INBAND=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "inband")
-    IPV6=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "ipv6")
-    IPV4=$(sonic-db-cli CONFIG_DB HGET "ZTP|mode" "ipv4")
+    ZTP_PROF_LOADED=$(sonic-db-cli -s CONFIG_DB HGET "ZTP|mode" "profile")
+    INBAND=$(sonic-db-cli -s CONFIG_DB HGET "ZTP|mode" "inband")
+    IPV6=$(sonic-db-cli -s CONFIG_DB HGET "ZTP|mode" "ipv6")
+    IPV4=$(sonic-db-cli -s CONFIG_DB HGET "ZTP|mode" "ipv4")
 
     if [ "${ZTP_PROF_LOADED}" = "active" ]; then
         ZTP_STRING="ztp;inband:${INBAND};ipv4:${IPV4};ipv6:${IPV6}"
@@ -151,7 +151,7 @@ wait_for_system_online()
 {
     TRIES=${RETRY_COUNT}
     # Obtain the list of interfaces that may be created after some delay
-    HOTPLUG_LIST=$(sonic-db-cli CONFIG_DB KEYS "PORT*" | cut -f2 -d\|)
+    HOTPLUG_LIST=$(sonic-db-cli -s CONFIG_DB KEYS "PORT*" | cut -f2 -d\|)
 
     while [ ${TRIES} -gt 0 ]
     do
@@ -256,7 +256,7 @@ if [ "$CMD" = "remove" ] ; then
             fi
         else
             # Remove ZTP configuration from config-db
-            sonic-db-cli CONFIG_DB DEL "ZTP|mode" > /dev/null
+            sonic-db-cli -s --authenticate CONFIG_DB DEL "ZTP|mode" > /dev/null
         fi
 
         updateActivity "Restarting network configuration"
