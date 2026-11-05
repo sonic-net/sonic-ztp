@@ -256,7 +256,7 @@ if [ "$CMD" = "remove" ] ; then
             fi
         else
             # Remove ZTP configuration from config-db
-            sonic-db-cli -s CONFIG_DB DEL "ZTP|mode" > /dev/null
+            sonic-db-cli -s --authenticate CONFIG_DB DEL "ZTP|mode" > /dev/null
         fi
 
         updateActivity "Restarting network configuration"
