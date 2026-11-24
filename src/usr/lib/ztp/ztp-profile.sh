@@ -41,6 +41,42 @@ PLATFORM=`sonic-cfggen -H -v DEVICE_METADATA.localhost.platform`
 PRESET=(`head -n 1 /usr/share/sonic/device/$PLATFORM/default_sku`)
 HW_KEY=${PRESET[0]}
 
+# Function to detect which NTP service is active
+# Different SONiC releases use: ntp or chrony
+get_ntp_service() {
+    for service in chrony ntp; do
+        if systemctl is-active --quiet "$service"; then
+            echo "$service"
+            return 0
+        fi
+    done
+    return 1
+}
+
+restart_interfaces_config_with_ntp() {
+    local ntp_service
+    local rc
+
+    ntp_service=$(get_ntp_service)
+    if [ -n "$ntp_service" ]; then
+        echo "Stopping $ntp_service."
+        updateActivity "Stopping $ntp_service"
+        systemctl stop "$ntp_service"
+    fi
+
+    echo "Restarting interfaces-config."
+    updateActivity "Restarting interfaces-config"
+    systemctl restart interfaces-config
+    rc=$?
+
+    if [ -n "$ntp_service" ]; then
+        systemctl start "$ntp_service"
+        echo "Restarted $ntp_service."
+    fi
+
+    return $rc
+}
+
 # Command usage and help
 usage()
 {
@@ -221,9 +257,7 @@ if [ "$CMD" = "install" ] ; then
         # Restart interface configuration again to pickup newly created interfaces
         # to start DHCP discovery
         if [ "$(ztp status -c)" = "4:IN-PROGRESS" ]; then
-            echo "Restarting network configuration."
-            updateActivity "Restarting network configuration"
-            systemctl restart interfaces-config
+            restart_interfaces_config_with_ntp
             echo "Restarted network configuration."
         fi
     fi
@@ -259,9 +293,8 @@ if [ "$CMD" = "remove" ] ; then
             sonic-db-cli CONFIG_DB DEL "ZTP|mode" > /dev/null
         fi
 
-        updateActivity "Restarting network configuration"
         # Restart interface configuration to stop DHCP
-        systemctl restart interfaces-config
+        restart_interfaces_config_with_ntp
     fi
 
     # Remove ZTP DHCP policy
