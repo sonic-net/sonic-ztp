@@ -51,6 +51,8 @@ class Identifier:
                     return sysEeprom.get_serial_number()
                 elif identifier_data == "product-name":
                     return sysEeprom.get_product_name()
+                elif identifier_data == "mac":
+                    return sysEeprom.get_mac_addr()
                 elif identifier_data == "sonic-version":
                     return get_sonic_version()
                 else:
